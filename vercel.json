@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/atualizar-novidades",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}
