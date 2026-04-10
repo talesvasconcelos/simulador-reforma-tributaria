@@ -13,6 +13,7 @@ const schemaProjecao = z.object({
   aliquotaIss: z.number().min(0).max(100),
   comprasAnuais: z.number().min(0).optional(),
   isExportadora: z.boolean().optional(),
+  pisCofinsRegime: z.enum(['cumulativo', 'nao_cumulativo']).optional(),
 })
 
 export async function POST(req: NextRequest) {

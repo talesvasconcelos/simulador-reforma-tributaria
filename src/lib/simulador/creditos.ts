@@ -9,6 +9,7 @@ export interface ParamsCredito {
   comprasAnuais: number          // Valor total das compras/serviços com crédito
   cronograma: CronogramaAno
   setor: string
+  semCredito?: boolean           // true = CBS cumulativa (Lucro Presumido optante) — sem crédito de entrada
 }
 
 export interface ResultadoCredito {
@@ -28,7 +29,19 @@ export interface ResultadoCredito {
  * Isento: sem crédito
  */
 export function calcularCreditos(params: ParamsCredito): ResultadoCredito {
-  const { regime, comprasAnuais, cronograma, setor } = params
+  const { regime, comprasAnuais, cronograma, setor, semCredito } = params
+
+  // CBS cumulativa (Lucro Presumido optante) — sem crédito nas entradas (Art. 9 §6° LC 214/2025)
+  if (semCredito) {
+    return {
+      creditoCbs: 0,
+      creditoIbs: 0,
+      totalCredito: 0,
+      baseCalculo: comprasAnuais,
+      percentualEfetivo: 0,
+      metodologia: 'CBS cumulativa (3,65%) — sem crédito de entrada. Lucro Presumido optante (LC 214/2025, Art. 9 §6°)',
+    }
+  }
 
   // 2026: período de teste — CBS/IBS apenas informativo, sem crédito (Art. 359 LC 214/2025)
   if (cronograma.isAnoDeTeste) {
