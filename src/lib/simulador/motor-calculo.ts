@@ -23,8 +23,6 @@ const ALIQUOTA_PIS_CUMULATIVO = 0.0065   // 0,65%
 const ALIQUOTA_COFINS_CUMULATIVO = 0.030  // 3,00%
 const ALIQUOTA_PIS_COFINS_CUMULATIVO = ALIQUOTA_PIS_CUMULATIVO + ALIQUOTA_COFINS_CUMULATIVO // 3,65%
 
-// CBS Lucro Presumido opção cumulativa (LC 214/2025, Art. 9 §6°)
-const CBS_PRESUMIDO_CUMULATIVO = 0.0365  // 3,65% — mesma carga, sem crédito
 
 /**
  * Calcula o impacto tributário para um determinado ano da transição.
@@ -114,16 +112,9 @@ export function calcularImpacto(params: ParamsCalculo): ResultadoCalculo {
   let cbsBruto = 0
   let ibsBruto = 0
 
-  // Lucro Presumido cumulativo pode optar por CBS 3,65% sem crédito (LC 214/2025, Art. 9 §6°)
-  const usaCbsCumulativo = regime === 'lucro_presumido' && pisCofinsRegime === 'cumulativo'
-
+  // A partir de 2027, CBS 8,8% é obrigatória para Lucro Real e Presumido — sem opção de cumulativo
   if (regime !== 'isento' && regime !== 'simples_nacional' && regime !== 'mei' && regime !== 'nanoempreendedor') {
-    if (usaCbsCumulativo) {
-      // CBS cumulativa: 3,65% sobre o faturamento, sem crédito
-      cbsBruto = isExportadora ? 0 : faturamentoAnual * CBS_PRESUMIDO_CUMULATIVO * percentualCbs
-    } else {
-      cbsBruto = isExportadora ? 0 : faturamentoAnual * cbsEfetiva * percentualCbs
-    }
+    cbsBruto = isExportadora ? 0 : faturamentoAnual * cbsEfetiva * percentualCbs
     ibsBruto = isExportadora ? 0 : faturamentoAnual * ibsEfetiva * percentualIbs
   } else if (regime === 'simples_nacional' || regime === 'mei' || regime === 'nanoempreendedor') {
     // Simples recolhe CBS+IBS em alíquota diferenciada (~5% total estimado)
@@ -146,8 +137,6 @@ export function calcularImpacto(params: ParamsCalculo): ResultadoCalculo {
     comprasAnuais,
     cronograma,
     setor,
-    // CBS cumulativa: sem crédito (Art. 9 §6° LC 214/2025)
-    semCredito: usaCbsCumulativo,
   })
 
   const cbsLiquido = Math.max(0, cbsBruto - creditos.creditoCbs)
@@ -170,64 +159,54 @@ export function calcularImpacto(params: ParamsCalculo): ResultadoCalculo {
   const variacaoPercentual = cargaAtual > 0 ? (variacaoAbsoluta / cargaAtual) * 100 : 0
 
   // ============================================================
-  // 5. COMPARATIVO CBS CUMULATIVO vs NÃO-CUMULATIVO (Lucro Presumido)
+  // 5. COMPARATIVO INFORMATIVO: PIS/COFINS antes de 2027 vs CBS 8,8%
+  //    A CBS 8,8% é obrigatória a partir de 2027 — sem opção de regime.
+  //    Mostra o impacto conforme o regime que a empresa tinha antes.
   // ============================================================
 
   let comparativoCbs: ComparativoCbsPresumido | undefined
 
-  if (regime === 'lucro_presumido' && !isExportadora && !cronograma.isAnoDeTeste) {
-    // Opção A: CBS cumulativa 3,65% sem crédito
-    const cbsCumulativaValor = faturamentoAnual * CBS_PRESUMIDO_CUMULATIVO * percentualCbs
-    const pisCofinsAtualCumulativo = faturamentoAnual * ALIQUOTA_PIS_COFINS_CUMULATIVO
-
-    // Opção B: CBS não-cumulativa 8,8% com crédito integral
-    const cbsNaoCumulativaBruto = faturamentoAnual * cbsEfetiva * percentualCbs
-    const creditoCbsNaoCumulativo = comprasAnuais * cbsEfetiva
-    const cbsNaoCumulativaLiquido = Math.max(0, cbsNaoCumulativaBruto - creditoCbsNaoCumulativo)
-
-    const pontoEquilibrio = (CBS_PRESUMIDO_CUMULATIVO / (cbsEfetiva > 0 ? cbsEfetiva : 0.088)) * 100  // %
+  if ((regime === 'lucro_presumido' || regime === 'lucro_real') && !isExportadora && !cronograma.isAnoDeTeste) {
+    const cbsBrutoComp = faturamentoAnual * cbsEfetiva * percentualCbs
+    const creditoCbs = comprasAnuais * cbsEfetiva
+    const cbsLiquidoComp = Math.max(0, cbsBrutoComp - creditoCbs)
     const comprasFaturamentoRatio = faturamentoAnual > 0 ? (comprasAnuais / faturamentoAnual) * 100 : 0
 
-    const economiaComMigracao = cbsCumulativaValor - cbsNaoCumulativaLiquido // positivo = migrar é melhor
+    // Referência: se empresa era PIS/COFINS cumulativo (3,65% — Lucro Presumido Lei 9.718/98)
+    const pisCofinsAntesCumulativo = faturamentoAnual * ALIQUOTA_PIS_COFINS_CUMULATIVO
+    const varCumulativo = cbsLiquidoComp - pisCofinsAntesCumulativo
+    const varCumulativoPercent = pisCofinsAntesCumulativo > 0 ? (varCumulativo / pisCofinsAntesCumulativo) * 100 : 0
+
+    // Referência: se empresa era PIS/COFINS não-cumulativo (9,25% com crédito nas entradas)
+    const pisCofinsAntesNaoCumulativoBruto = faturamentoAnual * ALIQUOTA_PIS_COFINS_NAO_CUMULATIVO
+    // PIS/COFINS não-cumulativo já permitia crédito sobre compras às mesmas alíquotas (PIS 1,65% + COFINS 7,6%)
+    const creditoPisCofinsEntradas = comprasAnuais * ALIQUOTA_PIS_COFINS_NAO_CUMULATIVO
+    const pisCofinsAntesNaoCumulativoLiquido = Math.max(0, pisCofinsAntesNaoCumulativoBruto - creditoPisCofinsEntradas)
+    const varNaoCumulativo = cbsLiquidoComp - pisCofinsAntesNaoCumulativoLiquido
+    const varNaoCumulativoPercent = pisCofinsAntesNaoCumulativoLiquido > 0 ? (varNaoCumulativo / pisCofinsAntesNaoCumulativoLiquido) * 100 : 0
 
     comparativoCbs = {
-      pontoEquilibrio: parseFloat(pontoEquilibrio.toFixed(1)),
+      cbsLiquido: cbsLiquidoComp,
+      creditoAproveitado: creditoCbs,
+      cbsBruto: cbsBrutoComp,
       comprasFaturamentoRatio: parseFloat(comprasFaturamentoRatio.toFixed(1)),
-      opcaoCumulativa: {
-        pisCofinsAtual: pisCofinsAtualCumulativo,
-        cbsFuturo: cbsCumulativaValor,
-        variacaoAbsoluta: cbsCumulativaValor - pisCofinsAtualCumulativo,
-        variacaoPercentual: pisCofinsAtualCumulativo > 0
-          ? ((cbsCumulativaValor - pisCofinsAtualCumulativo) / pisCofinsAtualCumulativo) * 100
-          : 0,
+      seCumulativo: {
+        pisCofinsAntes: pisCofinsAntesCumulativo,
+        variacaoAbsoluta: varCumulativo,
+        variacaoPercentual: varCumulativoPercent,
+        impacto: varCumulativo > 0 ? 'aumento' : varCumulativo < 0 ? 'reducao' : 'neutro',
       },
-      opcaoNaoCumulativa: {
-        pisCofinsAtual: faturamentoAnual * ALIQUOTA_PIS_COFINS_NAO_CUMULATIVO,
-        cbsBruto: cbsNaoCumulativaBruto,
-        creditoAproveitado: creditoCbsNaoCumulativo,
-        cbsLiquido: cbsNaoCumulativaLiquido,
-        variacaoVsAtualCumulativo: cbsNaoCumulativaLiquido - pisCofinsAtualCumulativo,
-        variacaoPercentualVsAtual: pisCofinsAtualCumulativo > 0
-          ? ((cbsNaoCumulativaLiquido - pisCofinsAtualCumulativo) / pisCofinsAtualCumulativo) * 100
-          : 0,
+      seNaoCumulativo: {
+        pisCofinsAntes: pisCofinsAntesNaoCumulativoBruto,
+        pisCofinsLiquidoAntes: pisCofinsAntesNaoCumulativoLiquido,
+        variacaoAbsoluta: varNaoCumulativo,
+        variacaoPercentual: varNaoCumulativoPercent,
+        impacto: varNaoCumulativo > 0 ? 'aumento' : varNaoCumulativo < 0 ? 'reducao' : 'neutro',
       },
-      recomendacao: economiaComMigracao > 0 ? 'migrar_nao_cumulativo' : 'manter_cumulativo',
-      economiaAnualComMigracao: economiaComMigracao,
     }
   }
 
   // Gerar alertas contextuais
-  if (regime === 'lucro_presumido' && comparativoCbs && !cronograma.isAnoDeTeste) {
-    if (comparativoCbs.recomendacao === 'migrar_nao_cumulativo') {
-      alertas.push(
-        `Oportunidade: com ${comparativoCbs.comprasFaturamentoRatio.toFixed(0)}% de compras sobre faturamento, a opção CBS não-cumulativa (8,8% com crédito) é mais vantajosa que a cumulativa (3,65%) — economia estimada de R$ ${Math.round(comparativoCbs.economiaAnualComMigracao).toLocaleString('pt-BR')}/ano no CBS.`
-      )
-    } else {
-      alertas.push(
-        `CBS cumulativa (3,65% sem crédito) é mais vantajosa para sua empresa: ponto de equilíbrio exige ${comparativoCbs.pontoEquilibrio.toFixed(0)}% de compras sobre faturamento — sua empresa está em ${comparativoCbs.comprasFaturamentoRatio.toFixed(0)}%.`
-      )
-    }
-  }
   if (configSetor.reducaoPercentual > 0) {
     alertas.push(
       `Seu setor tem redução de ${configSetor.reducaoPercentual}% nas alíquotas — benefício garantido por lei.`

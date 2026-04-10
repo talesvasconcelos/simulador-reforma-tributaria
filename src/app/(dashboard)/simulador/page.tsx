@@ -101,66 +101,13 @@ export default function SimuladorPage() {
           <div className="p-5 space-y-4">
             <div>
               <label className={labelCls}>Regime Tributário</label>
-              <select
-                value={params.regime}
-                onChange={(e) => {
-                  const novoRegime = e.target.value
-                  setParams((p) => ({
-                    ...p,
-                    regime: novoRegime,
-                    // Lucro Real é sempre não-cumulativo; Presumido padrão cumulativo
-                    pisCofinsRegime: novoRegime === 'lucro_real' ? 'nao_cumulativo' : 'cumulativo',
-                  }))
-                }}
-                className={inputCls}
-              >
+              <select value={params.regime} onChange={(e) => setParams((p) => ({ ...p, regime: e.target.value }))} className={inputCls}>
                 <option value="simples_nacional">Simples Nacional</option>
                 <option value="mei">MEI</option>
                 <option value="lucro_presumido">Lucro Presumido</option>
                 <option value="lucro_real">Lucro Real</option>
               </select>
             </div>
-
-            {/* Seletor PIS/COFINS — apenas Lucro Presumido */}
-            {params.regime === 'lucro_presumido' && (
-              <div className="bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/60 rounded-xl p-3 space-y-2">
-                <label className="text-[11px] font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wider block">
-                  Regime PIS/COFINS (Lucro Presumido)
-                </label>
-                <div className="space-y-1.5">
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="pisCofinsRegime"
-                      value="cumulativo"
-                      checked={params.pisCofinsRegime === 'cumulativo'}
-                      onChange={() => setParams((p) => ({ ...p, pisCofinsRegime: 'cumulativo' }))}
-                      className="mt-0.5 accent-blue-600"
-                    />
-                    <span className="text-xs text-foreground">
-                      <strong>Cumulativo</strong> — PIS 0,65% + COFINS 3,00% = 3,65% (sem crédito)
-                      <br />
-                      <span className="text-muted-foreground/70">Lei 9.718/98 — padrão para a maioria das empresas</span>
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="pisCofinsRegime"
-                      value="nao_cumulativo"
-                      checked={params.pisCofinsRegime === 'nao_cumulativo'}
-                      onChange={() => setParams((p) => ({ ...p, pisCofinsRegime: 'nao_cumulativo' }))}
-                      className="mt-0.5 accent-blue-600"
-                    />
-                    <span className="text-xs text-foreground">
-                      <strong>Não-cumulativo</strong> — PIS 1,65% + COFINS 7,60% = 9,25% (com crédito)
-                      <br />
-                      <span className="text-muted-foreground/70">Lei 10.637/02 e 10.833/03 — vantajoso com muitos insumos</span>
-                    </span>
-                  </label>
-                </div>
-              </div>
-            )}
             <div>
               <label className={labelCls}>Setor de Atividade</label>
               <select value={params.setor} onChange={(e) => setParams((p) => ({ ...p, setor: e.target.value }))} className={inputCls}>
@@ -269,107 +216,130 @@ export default function SimuladorPage() {
                 </div>
               </div>
 
-              {/* Comparativo CBS cumulativo vs não-cumulativo — Lucro Presumido */}
+              {/* Comparativo PIS/COFINS antes de 2027 vs CBS 8,8% a partir de 2027 */}
               {resultado.comparativoCbs && (
-                <div className="bg-card rounded-2xl border border-blue-200 dark:border-blue-800/60 shadow-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-blue-100 dark:border-blue-800/40 bg-blue-50/50 dark:bg-blue-900/10">
-                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
-                      Opção CBS — Cumulativo vs Não-Cumulativo ({anoSelecionado})
+                <div className="bg-card rounded-2xl border border-indigo-200 dark:border-indigo-800/60 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-indigo-100 dark:border-indigo-800/40 bg-indigo-50/50 dark:bg-indigo-900/10">
+                    <h3 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
+                      Impacto da CBS sobre o PIS/COFINS — {anoSelecionado}
                     </h3>
-                    <p className="text-xs text-blue-700/70 dark:text-blue-300/70 mt-0.5">
-                      LC 214/2025, Art. 9 §6° — Lucro Presumido pode optar pela CBS cumulativa (3,65%) ou migrar para a não-cumulativa (8,8% com crédito)
+                    <p className="text-xs text-indigo-700/70 dark:text-indigo-300/70 mt-0.5">
+                      A partir de 2027, PIS e COFINS são extintos e substituídos pela CBS 8,8% para todos (Lucro Real e Presumido) — sem opção de regime. Veja o impacto conforme o PIS/COFINS que sua empresa recolhia antes.
                     </p>
                   </div>
-                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Opção A: Cumulativo */}
-                    <div className={`rounded-xl border p-4 space-y-3 ${resultado.comparativoCbs.recomendacao === 'manter_cumulativo' ? 'border-green-300 bg-green-50 dark:bg-green-900/15' : 'border-border bg-muted/30'}`}>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-foreground uppercase tracking-wide">CBS Cumulativa</p>
-                        {resultado.comparativoCbs.recomendacao === 'manter_cumulativo' && (
-                          <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">RECOMENDADO</span>
-                        )}
-                      </div>
-                      <div className="space-y-1.5 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Alíquota CBS</span>
-                          <span className="font-semibold">3,65% (sem crédito)</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">PIS/COFINS hoje</span>
-                          <span className="num font-medium">{formatarMoeda(resultado.comparativoCbs.opcaoCumulativa.pisCofinsAtual)}</span>
-                        </div>
-                        <div className="flex justify-between border-t border-border/60 pt-1.5">
-                          <span className="text-muted-foreground">CBS futuro</span>
-                          <span className="num font-bold text-foreground">{formatarMoeda(resultado.comparativoCbs.opcaoCumulativa.cbsFuturo)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Variação</span>
-                          <span className={`num font-semibold ${resultado.comparativoCbs.opcaoCumulativa.variacaoAbsoluta <= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            {resultado.comparativoCbs.opcaoCumulativa.variacaoAbsoluta > 0 ? '+' : ''}
-                            {formatarMoeda(resultado.comparativoCbs.opcaoCumulativa.variacaoAbsoluta)}
-                            {' '}({resultado.comparativoCbs.opcaoCumulativa.variacaoPercentual > 0 ? '+' : ''}
-                            {resultado.comparativoCbs.opcaoCumulativa.variacaoPercentual.toFixed(1)}%)
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                        Mantém a mesma lógica do PIS/COFINS cumulativo atual. Sem aproveitamento de crédito nas compras. Base legal: Art. 9 §6° LC 214/2025.
-                      </p>
-                    </div>
 
-                    {/* Opção B: Não-cumulativo */}
-                    <div className={`rounded-xl border p-4 space-y-3 ${resultado.comparativoCbs.recomendacao === 'migrar_nao_cumulativo' ? 'border-green-300 bg-green-50 dark:bg-green-900/15' : 'border-border bg-muted/30'}`}>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-foreground uppercase tracking-wide">CBS Não-Cumulativa</p>
-                        {resultado.comparativoCbs.recomendacao === 'migrar_nao_cumulativo' && (
-                          <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">RECOMENDADO</span>
-                        )}
+                  {/* CBS futuro — igual para todos */}
+                  <div className="px-5 py-4 border-b border-border/60 bg-muted/30">
+                    <div className="flex flex-wrap items-center gap-6 text-sm">
+                      <div>
+                        <p className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider mb-0.5">CBS a partir de 2027</p>
+                        <p className="num text-xl font-bold text-indigo-600">{formatarMoeda(resultado.comparativoCbs.cbsLiquido)}</p>
+                        <p className="text-xs text-muted-foreground/60 mt-0.5">8,8% bruto − crédito de compras</p>
                       </div>
-                      <div className="space-y-1.5 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Alíquota CBS</span>
-                          <span className="font-semibold">8,8% com crédito integral</span>
+                      <div className="text-xs text-muted-foreground space-y-0.5">
+                        <div className="flex gap-4">
+                          <span>CBS bruto (8,8%)</span>
+                          <span className="num font-medium text-foreground">{formatarMoeda(resultado.comparativoCbs.cbsBruto)}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">CBS bruto</span>
-                          <span className="num">{formatarMoeda(resultado.comparativoCbs.opcaoNaoCumulativa.cbsBruto)}</span>
+                        <div className="flex gap-4">
+                          <span>(−) Crédito nas compras</span>
+                          <span className="num font-medium text-green-600">−{formatarMoeda(resultado.comparativoCbs.creditoAproveitado)}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">(-) Crédito compras</span>
-                          <span className="num text-green-600 font-medium">-{formatarMoeda(resultado.comparativoCbs.opcaoNaoCumulativa.creditoAproveitado)}</span>
-                        </div>
-                        <div className="flex justify-between border-t border-border/60 pt-1.5">
-                          <span className="text-muted-foreground">CBS líquido</span>
-                          <span className="num font-bold text-foreground">{formatarMoeda(resultado.comparativoCbs.opcaoNaoCumulativa.cbsLiquido)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">vs PIS/COFINS cumulativo atual</span>
-                          <span className={`num font-semibold ${resultado.comparativoCbs.opcaoNaoCumulativa.variacaoVsAtualCumulativo <= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            {resultado.comparativoCbs.opcaoNaoCumulativa.variacaoVsAtualCumulativo > 0 ? '+' : ''}
-                            {formatarMoeda(resultado.comparativoCbs.opcaoNaoCumulativa.variacaoVsAtualCumulativo)}
-                          </span>
+                        <div className="flex gap-4">
+                          <span>Compras / faturamento</span>
+                          <span className="font-medium text-foreground">{resultado.comparativoCbs.comprasFaturamentoRatio.toFixed(0)}%</span>
                         </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                        Vantajoso quando compras/faturamento &gt; {resultado.comparativoCbs.pontoEquilibrio}%. Sua empresa está em {resultado.comparativoCbs.comprasFaturamentoRatio.toFixed(0)}%. Base legal: Art. 9 caput LC 214/2025.
-                      </p>
                     </div>
                   </div>
 
-                  {/* Conclusão */}
-                  <div className={`px-5 py-3 border-t text-xs font-medium ${resultado.comparativoCbs.recomendacao === 'migrar_nao_cumulativo' ? 'bg-green-50 dark:bg-green-900/10 border-green-200 text-green-800 dark:text-green-300' : 'bg-muted/50 border-border text-muted-foreground'}`}>
-                    {resultado.comparativoCbs.recomendacao === 'migrar_nao_cumulativo' ? (
-                      <>
-                        Migrar para CBS não-cumulativa pode reduzir o CBS em{' '}
-                        <strong>{formatarMoeda(Math.abs(resultado.comparativoCbs.economiaAnualComMigracao))}/ano</strong>.
-                        Consulte seu contador — a opção é irrevogável dentro do ano-calendário.
-                      </>
-                    ) : (
-                      <>
-                        Manter CBS cumulativa é mais vantajoso para seu volume de compras.
-                        Ponto de equilíbrio: compras devem superar <strong>{resultado.comparativoCbs.pontoEquilibrio}%</strong> do faturamento para a não-cumulativa compensar.
-                      </>
-                    )}
+                  {/* Comparativo por regime anterior */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border/60">
+                    {/* Se era PIS/COFINS Cumulativo */}
+                    <div className="p-5 space-y-3">
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Se sua empresa era PIS/COFINS Cumulativo</p>
+                        <p className="text-[10px] text-muted-foreground/70 mt-0.5">PIS 0,65% + COFINS 3,00% = 3,65% — Lei 9.718/98 (sem crédito de entradas)</p>
+                      </div>
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">PIS/COFINS antes (3,65%)</span>
+                          <span className="num">{formatarMoeda(resultado.comparativoCbs.seCumulativo.pisCofinsAntes)}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-border/60 pt-1.5">
+                          <span className="text-muted-foreground">CBS 8,8% líquido</span>
+                          <span className="num font-bold text-foreground">{formatarMoeda(resultado.comparativoCbs.cbsLiquido)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground font-semibold">Variação</span>
+                          <span className={`num font-bold ${resultado.comparativoCbs.seCumulativo.impacto === 'reducao' ? 'text-green-600' : resultado.comparativoCbs.seCumulativo.impacto === 'aumento' ? 'text-red-500' : 'text-foreground'}`}>
+                            {resultado.comparativoCbs.seCumulativo.variacaoAbsoluta > 0 ? '+' : ''}
+                            {formatarMoeda(resultado.comparativoCbs.seCumulativo.variacaoAbsoluta)}
+                            {' '}
+                            <span className="font-normal">
+                              ({resultado.comparativoCbs.seCumulativo.variacaoPercentual > 0 ? '+' : ''}
+                              {resultado.comparativoCbs.seCumulativo.variacaoPercentual.toFixed(1)}%)
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                      <div className={`text-[10px] font-medium px-2.5 py-1.5 rounded-lg ${resultado.comparativoCbs.seCumulativo.impacto === 'reducao' ? 'bg-green-100 text-green-800' : resultado.comparativoCbs.seCumulativo.impacto === 'aumento' ? 'bg-red-100 text-red-700' : 'bg-muted text-muted-foreground'}`}>
+                        {resultado.comparativoCbs.seCumulativo.impacto === 'reducao'
+                          ? 'CBS reduz a carga vs PIS/COFINS cumulativo — crédito nas compras compensa a alíquota maior.'
+                          : resultado.comparativoCbs.seCumulativo.impacto === 'aumento'
+                            ? 'CBS aumenta a carga vs PIS/COFINS cumulativo — volume de compras insuficiente para absorver a alíquota de 8,8%.'
+                            : 'Carga praticamente neutra.'}
+                      </div>
+                    </div>
+
+                    {/* Se era PIS/COFINS Não-Cumulativo */}
+                    <div className="p-5 space-y-3">
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Se sua empresa era PIS/COFINS Não-Cumulativo</p>
+                        <p className="text-[10px] text-muted-foreground/70 mt-0.5">PIS 1,65% + COFINS 7,60% = 9,25% — Leis 10.637/02 e 10.833/03 (com crédito de entradas)</p>
+                      </div>
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">PIS/COFINS bruto (9,25%)</span>
+                          <span className="num">{formatarMoeda(resultado.comparativoCbs.seNaoCumulativo.pisCofinsAntes)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">(−) Crédito entradas (9,25%)</span>
+                          <span className="num text-green-600">−{formatarMoeda(resultado.comparativoCbs.seNaoCumulativo.pisCofinsAntes - resultado.comparativoCbs.seNaoCumulativo.pisCofinsLiquidoAntes)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">PIS/COFINS líquido antes</span>
+                          <span className="num">{formatarMoeda(resultado.comparativoCbs.seNaoCumulativo.pisCofinsLiquidoAntes)}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-border/60 pt-1.5">
+                          <span className="text-muted-foreground">CBS 8,8% líquido</span>
+                          <span className="num font-bold text-foreground">{formatarMoeda(resultado.comparativoCbs.cbsLiquido)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground font-semibold">Variação</span>
+                          <span className={`num font-bold ${resultado.comparativoCbs.seNaoCumulativo.impacto === 'reducao' ? 'text-green-600' : resultado.comparativoCbs.seNaoCumulativo.impacto === 'aumento' ? 'text-red-500' : 'text-foreground'}`}>
+                            {resultado.comparativoCbs.seNaoCumulativo.variacaoAbsoluta > 0 ? '+' : ''}
+                            {formatarMoeda(resultado.comparativoCbs.seNaoCumulativo.variacaoAbsoluta)}
+                            {' '}
+                            <span className="font-normal">
+                              ({resultado.comparativoCbs.seNaoCumulativo.variacaoPercentual > 0 ? '+' : ''}
+                              {resultado.comparativoCbs.seNaoCumulativo.variacaoPercentual.toFixed(1)}%)
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                      <div className={`text-[10px] font-medium px-2.5 py-1.5 rounded-lg ${resultado.comparativoCbs.seNaoCumulativo.impacto === 'reducao' ? 'bg-green-100 text-green-800' : resultado.comparativoCbs.seNaoCumulativo.impacto === 'aumento' ? 'bg-red-100 text-red-700' : 'bg-muted text-muted-foreground'}`}>
+                        {resultado.comparativoCbs.seNaoCumulativo.impacto === 'reducao'
+                          ? 'CBS reduz a carga vs PIS/COFINS não-cumulativo — alíquota menor (8,8% vs 9,25%) favorece quem já tinha créditos.'
+                          : resultado.comparativoCbs.seNaoCumulativo.impacto === 'aumento'
+                            ? 'CBS aumenta levemente vs PIS/COFINS não-cumulativo.'
+                            : 'Carga praticamente neutra.'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="px-5 py-3 bg-muted/30 border-t border-border text-[10px] text-muted-foreground/70">
+                    Referência legal: extinção do PIS/COFINS em 2027 — LC 214/2025, Art. 7° e Art. 9°. CBS com crédito integral sobre todas as compras tributadas na cadeia.
                   </div>
                 </div>
               )}
