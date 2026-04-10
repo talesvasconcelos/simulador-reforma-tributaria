@@ -54,6 +54,16 @@ export function validarCnpj(cnpj: string): boolean {
   return parseInt(limpo[12]) === d1 && parseInt(limpo[13]) === d2
 }
 
+export function validarCpf(cpf: string): boolean {
+  const c = cpf.replace(/\D/g, '')
+  if (c.length !== 11 || /^(\d)\1+$/.test(c)) return false
+  const soma = (n: number) =>
+    Array.from({ length: n }, (_, i) => parseInt(c[i]) * (n + 1 - i)).reduce((a, b) => a + b, 0)
+  const r1 = (soma(9) * 10) % 11
+  const r2 = (soma(10) * 10) % 11
+  return (r1 >= 10 ? 0 : r1) === parseInt(c[9]) && (r2 >= 10 ? 0 : r2) === parseInt(c[10])
+}
+
 export function labelRegime(regime: string): string {
   const labels: Record<string, string> = {
     simples_nacional: 'Simples Nacional',

@@ -8,6 +8,7 @@ interface ResultadoImportacao {
   total: number
   inseridos: number
   duplicatas: number
+  pessoasFisicas: number
   erros: number
   periodoDetectado: string
   colunaValorDetectada: string | null
@@ -246,7 +247,7 @@ export default function ImportarFornecedoresPage() {
               <p className="font-bold text-lg text-foreground num mt-0.5">{resultado.total}</p>
             </div>
             <div className="p-3 bg-green-50 dark:bg-green-900/15 rounded-xl">
-              <p className="text-muted-foreground/70 text-xs">Inseridos</p>
+              <p className="text-muted-foreground/70 text-xs">CNPJs inseridos</p>
               <p className="font-bold text-lg text-green-600 num mt-0.5">{resultado.inseridos}</p>
             </div>
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/15 rounded-xl">
@@ -254,9 +255,16 @@ export default function ImportarFornecedoresPage() {
               <p className="font-bold text-lg text-yellow-600 num mt-0.5">{resultado.duplicatas}</p>
             </div>
             <div className="p-3 bg-red-50 dark:bg-red-900/15 rounded-xl">
-              <p className="text-muted-foreground/70 text-xs">Erros</p>
+              <p className="text-muted-foreground/70 text-xs">Inválidos</p>
               <p className="font-bold text-lg text-red-600 num mt-0.5">{resultado.erros}</p>
             </div>
+            {resultado.pessoasFisicas > 0 && (
+              <div className="col-span-2 p-3 bg-purple-50 dark:bg-purple-900/15 border border-purple-200 dark:border-purple-800/60 rounded-xl">
+                <p className="text-muted-foreground/70 text-xs">Pessoas físicas (CPF)</p>
+                <p className="font-bold text-lg text-purple-600 num mt-0.5">{resultado.pessoasFisicas}</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Inseridas sem enriquecimento — sem crédito de CBS/IBS na Reforma Tributária.</p>
+              </div>
+            )}
           </div>
           {resultado.avisoFila && (
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/15 border border-yellow-200 dark:border-yellow-800/60 rounded-xl text-xs text-yellow-800 dark:text-yellow-300">

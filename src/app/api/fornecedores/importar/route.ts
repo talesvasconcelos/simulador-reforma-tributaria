@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { adicionarNaFila } from '@/lib/filas/queue'
-import { normalizarCnpj, validarCnpj } from '@/lib/utils'
+import { normalizarCnpj, validarCnpj, validarCpf } from '@/lib/utils'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -208,23 +208,24 @@ async function _handlePost(req: NextRequest) {
     ? detectarPeriodoColuna(colunaValor)
     : { divisor: 1, periodo: 'não informado' }
 
-  // --- Fase 1: validar todas as linhas e separar as inválidas ---
+  // --- Fase 1: validar todas as linhas e separar por tipo ---
   const cnpjsInvalidos: string[] = []
   const linhasValidas: Array<{
     cnpj: string
     nomeErp: string | undefined
     valorMedioComprasMensal: string | undefined
   }> = []
+  const cpfsValidos: Array<{
+    cpf: string
+    nomeErp: string | undefined
+    valorMedioComprasMensal: string | undefined
+  }> = []
 
   for (const linha of linhas) {
     const cnpjRaw = String(linha[colunaCnpj] ?? '').trim()
-    const cnpj = normalizarCnpj(cnpjRaw)
+    const digits = cnpjRaw.replace(/\D/g, '')
 
-    if (!cnpj || !validarCnpj(cnpj)) {
-      cnpjsInvalidos.push(cnpjRaw || '(vazio)')
-      continue
-    }
-
+    // Extrair nome e valor (comum a CNPJ e CPF)
     const nomeErpRaw = colunaNome ? String(linha[colunaNome] ?? '').trim() : ''
     // Remove null bytes, controle e surrogados Unicode inválidos (causam falha no JSON/PostgreSQL)
     const nomeErp = nomeErpRaw
@@ -240,12 +241,26 @@ async function _handlePost(req: NextRequest) {
         valorMensal = valorBruto / divisorPeriodo
       }
     }
+    const valorMensalStr = valorMensal !== undefined ? String(valorMensal) : undefined
 
-    linhasValidas.push({
-      cnpj,
-      nomeErp,
-      valorMedioComprasMensal: valorMensal !== undefined ? String(valorMensal) : undefined,
-    })
+    // CPF detectado (11 dígitos) — pessoa física, sem enriquecimento automático
+    if (digits.length === 11) {
+      if (validarCpf(digits)) {
+        cpfsValidos.push({ cpf: digits, nomeErp, valorMedioComprasMensal: valorMensalStr })
+      } else {
+        cnpjsInvalidos.push(cnpjRaw || '(vazio)')
+      }
+      continue
+    }
+
+    // CNPJ — normalizar e validar
+    const cnpj = normalizarCnpj(cnpjRaw)
+    if (!cnpj || !validarCnpj(cnpj)) {
+      cnpjsInvalidos.push(cnpjRaw || '(vazio)')
+      continue
+    }
+
+    linhasValidas.push({ cnpj, nomeErp, valorMedioComprasMensal: valorMensalStr })
   }
 
   const erros = cnpjsInvalidos.length
@@ -328,6 +343,31 @@ async function _handlePost(req: NextRequest) {
     }
   }
 
+  // --- Fase 2b: inserir CPFs como pessoa física (sem enriquecimento) ---
+  let pessoasFisicasInseridas = 0
+  for (const cpfData of cpfsValidos) {
+    try {
+      const [novo] = await db
+        .insert(fornecedores)
+        .values({
+          empresaId: empresa.id,
+          cnpj: cpfData.cpf,
+          nomeErp: cpfData.nomeErp,
+          valorMedioComprasMensal: cpfData.valorMedioComprasMensal,
+          razaoSocial: cpfData.nomeErp ?? null,
+          statusEnriquecimento: 'nao_encontrado' as const,
+          geraCredito: false,
+          erroEnriquecimento: 'Pessoa física (CPF) — sem crédito de CBS/IBS na Reforma Tributária (LC 214/2025)',
+          ultimoEnriquecimentoEm: new Date(),
+        })
+        .onConflictDoNothing({ target: [fornecedores.cnpj, fornecedores.empresaId] })
+        .returning({ id: fornecedores.id })
+      if (novo) pessoasFisicasInseridas++
+    } catch (e) {
+      console.error('[importar] erro ao inserir CPF pessoa física:', cpfData.cpf, String(e))
+    }
+  }
+
   // --- Fase 3: enfileirar enriquecimento em bulk (Redis isolado — falha não cancela importação) ---
   let filaErro: string | null = null
   if (jobsParaFila.length > 0) {
@@ -344,6 +384,7 @@ async function _handlePost(req: NextRequest) {
     total: linhas.length,
     inseridos,
     duplicatas,
+    pessoasFisicas: pessoasFisicasInseridas,
     erros: cnpjsInvalidos.length,
     cnpjsInvalidos: cnpjsInvalidos.slice(0, 50),
     periodoDetectado,

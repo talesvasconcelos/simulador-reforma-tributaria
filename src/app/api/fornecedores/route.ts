@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
-import { eq, and, count } from 'drizzle-orm'
+import { eq, and, count, or, ilike } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,14 +35,24 @@ export async function GET(req: NextRequest) {
   const regime = searchParams.get('regime')
   const setor = searchParams.get('setor')
   const status = searchParams.get('status')
+  const busca = searchParams.get('busca')?.trim() ?? ''
   const pagina = parseInt(searchParams.get('pagina') ?? '1')
   const porPagina = parseInt(searchParams.get('porPagina') ?? '50')
 
-  const filtros = [
-    eq(fornecedores.empresaId, empresa.id),
-    eq(fornecedores.ativo, true),
-  ]
-  const where = and(...filtros)
+  const where = busca
+    ? and(
+        eq(fornecedores.empresaId, empresa.id),
+        eq(fornecedores.ativo, true),
+        or(
+          ilike(fornecedores.razaoSocial, `%${busca}%`),
+          ilike(fornecedores.nomeErp, `%${busca}%`),
+          ilike(fornecedores.cnpj, `%${busca}%`),
+        ),
+      )
+    : and(
+        eq(fornecedores.empresaId, empresa.id),
+        eq(fornecedores.ativo, true),
+      )
 
   const [{ total }] = await db.select({ total: count() }).from(fornecedores).where(where)
 

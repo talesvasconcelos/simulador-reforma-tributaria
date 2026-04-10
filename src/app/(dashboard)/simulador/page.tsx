@@ -57,9 +57,12 @@ export default function SimuladorPage() {
     }
   }
 
+  // Recalcula automaticamente ao trocar ano ou qualquer parâmetro (debounce 400ms para inputs numéricos)
   useEffect(() => {
-    calcular()
-  }, [])
+    const t = setTimeout(calcular, 400)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anoSelecionado, params.regime, params.setor, params.faturamentoAnual, params.aliquotaIcms, params.aliquotaIss, params.comprasAnuais, params.isExportadora])
 
   const anos = [2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033]
 
@@ -171,7 +174,7 @@ export default function SimuladorPage() {
             {anos.map((ano) => (
               <button
                 key={ano}
-                onClick={() => { setAnoSelecionado(ano); calcular() }}
+                onClick={() => setAnoSelecionado(ano)}
                 className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold transition-all ${
                   anoSelecionado === ano
                     ? 'bg-blue-600 text-white shadow-sm'

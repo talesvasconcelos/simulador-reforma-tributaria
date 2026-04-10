@@ -237,6 +237,8 @@ export default function FornecedoresPage() {
   const [anosTabela, setAnosTabela] = useState<number[]>([])
   const [pagina, setPagina] = useState(1)
   const [totalFornecedores, setTotalFornecedores] = useState(0)
+  const [buscaInput, setBuscaInput] = useState('')
+  const [busca, setBusca] = useState('')
   const POR_PAGINA = 50
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -286,14 +288,31 @@ export default function FornecedoresPage() {
     URL.revokeObjectURL(url)
   }
 
-  async function carregarFornecedores(pag = pagina) {
-    const d = await fetch(`/api/fornecedores?pagina=${pag}&porPagina=${POR_PAGINA}`).then((r) => r.json())
+  async function carregarFornecedores(pag = pagina, filtro = busca) {
+    const params = new URLSearchParams({ pagina: String(pag), porPagina: String(POR_PAGINA) })
+    if (filtro) params.set('busca', filtro)
+    const d = await fetch(`/api/fornecedores?${params}`).then((r) => r.json())
     setFornecedores(d.fornecedores ?? [])
     setTotalFornecedores(d.total ?? 0)
   }
 
+  // Debounce da busca: 350ms após parar de digitar
   useEffect(() => {
+    const t = setTimeout(() => setBusca(buscaInput), 350)
+    return () => clearTimeout(t)
+  }, [buscaInput])
+
+  // Ao mudar busca: volta pra pág 1 e recarrega
+  useEffect(() => {
+    setPagina(1)
+    carregarFornecedores(1, busca).then(() => setCarregando(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca])
+
+  useEffect(() => {
+    if (busca) return // busca já cuida
     carregarFornecedores(pagina).then(() => setCarregando(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagina])
 
   useEffect(() => {
@@ -653,12 +672,28 @@ export default function FornecedoresPage() {
 
       {/* Lista de fornecedores */}
       <div className="bg-card rounded-2xl border border-border shadow-sm">
+        {/* Campo de busca */}
+        <div className="px-4 py-3 border-b border-border/60">
+          <input
+            type="text"
+            placeholder="Buscar por nome ou CNPJ..."
+            value={buscaInput}
+            onChange={(e) => setBuscaInput(e.target.value)}
+            className="w-full max-w-sm border border-border rounded-lg px-3 py-2 text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+          />
+        </div>
         {carregando ? (
           <div className="p-10 text-center text-muted-foreground text-sm">Carregando...</div>
         ) : fornecedores.length === 0 ? (
           <div className="p-14 text-center">
-            <p className="text-muted-foreground mb-2 text-sm">Nenhum fornecedor cadastrado ainda.</p>
-            <p className="text-xs text-muted-foreground/60">Consulte um CNPJ acima ou importe uma planilha.</p>
+            {busca ? (
+              <p className="text-muted-foreground text-sm">Nenhum fornecedor encontrado para <strong>&quot;{busca}&quot;</strong>.</p>
+            ) : (
+              <>
+                <p className="text-muted-foreground mb-2 text-sm">Nenhum fornecedor cadastrado ainda.</p>
+                <p className="text-xs text-muted-foreground/60">Consulte um CNPJ acima ou importe uma planilha.</p>
+              </>
+            )}
           </div>
         ) : (
           <>

@@ -35,6 +35,7 @@ export default function CompararFornecedoresPage() {
   const [ano, setAno] = useState(2027)
   const [selecionados, setSelecionados] = useState<ItemComparacao[]>([])
   const [carregando, setCarregando] = useState(true)
+  const [busca, setBusca] = useState('')
 
   useEffect(() => {
     const fetchJson = (url: string) =>
@@ -113,12 +114,27 @@ export default function CompararFornecedoresPage() {
               1. Selecione os fornecedores ({selecionados.length}/5)
             </h2>
             <p className="text-xs text-muted-foreground/70 mt-0.5">Apenas fornecedores com enriquecimento concluído</p>
+            <input
+              type="text"
+              placeholder="Filtrar por nome ou CNPJ..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="mt-2 w-full border border-border rounded-lg px-3 py-1.5 text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+            />
           </div>
           <div className="divide-y divide-border/60 max-h-96 overflow-y-auto">
             {fornecedores.length === 0 ? (
               <p className="p-5 text-sm text-muted-foreground/70">Nenhum fornecedor enriquecido ainda.</p>
             ) : (
-              fornecedores.map((f) => {
+              fornecedores.filter((f) => {
+                if (!busca.trim()) return true
+                const termo = busca.toLowerCase()
+                return (
+                  f.razaoSocial?.toLowerCase().includes(termo) ||
+                  f.nomeErp?.toLowerCase().includes(termo) ||
+                  f.cnpj.includes(busca.replace(/\D/g, ''))
+                )
+              }).map((f) => {
                 const selecionado = selecionados.some((s) => s.fornecedor.id === f.id)
                 return (
                   <label
