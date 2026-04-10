@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import { projetarTransicaoCompleta } from '@/lib/simulador/motor-calculo'
 
+export const dynamic = 'force-dynamic'
+
 const schemaProjecao = z.object({
   regime: z.string(),
   setor: z.string(),
@@ -14,7 +16,13 @@ const schemaProjecao = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth()
+  let userId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
   if (!userId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })

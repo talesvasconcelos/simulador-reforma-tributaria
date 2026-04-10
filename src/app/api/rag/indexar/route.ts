@@ -4,6 +4,8 @@ import { indexarDocumento } from '@/lib/rag/indexar'
 import fs from 'fs'
 import path from 'path'
 
+export const dynamic = 'force-dynamic'
+
 const schemaIndexar = z.object({
   titulo: z.string().min(3),
   fonte: z.string().min(2),
@@ -29,20 +31,25 @@ export async function POST(req: NextRequest) {
     )
 
     if (!fs.existsSync(caminho)) {
-      return NextResponse.json({ error: 'Arquivo de legislação não encontrado' }, { status: 404 })
+      return NextResponse.json({ error: 'Arquivo de legislação não encontrado', caminho }, { status: 404 })
     }
 
-    const conteudo = fs.readFileSync(caminho, 'utf-8')
+    try {
+      const conteudo = fs.readFileSync(caminho, 'utf-8')
 
-    const documentoId = await indexarDocumento({
-      titulo: 'Documentação Completa — Reforma Tributária Brasileira (LC 214/2025)',
-      fonte: 'LC 214/2025 + EC 132/2023',
-      conteudo,
-      tipoDocumento: 'lei',
-      dataPublicacao: new Date('2025-01-10'),
-    })
+      const documentoId = await indexarDocumento({
+        titulo: 'Documentação Completa — Reforma Tributária Brasileira (LC 214/2025)',
+        fonte: 'LC 214/2025 + EC 132/2023',
+        conteudo,
+        tipoDocumento: 'lei',
+        dataPublicacao: new Date('2025-01-10'),
+      })
 
-    return NextResponse.json({ documentoId, sucesso: true })
+      return NextResponse.json({ documentoId, sucesso: true })
+    } catch (err: unknown) {
+      console.error('[rag/indexar] Erro ao indexar base legal:', err)
+      return NextResponse.json({ error: 'Erro interno ao indexar documento. Tente novamente.' }, { status: 500 })
+    }
   }
 
   const parse = schemaIndexar.safeParse(body)

@@ -3,10 +3,20 @@ import { auth } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, count } from 'drizzle-orm'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const { userId, orgId } = await auth()
+  let userId: string | null = null
+  let orgId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+    orgId = authResult.orgId ?? null
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -28,14 +38,16 @@ export async function GET(req: NextRequest) {
   const pagina = parseInt(searchParams.get('pagina') ?? '1')
   const porPagina = parseInt(searchParams.get('porPagina') ?? '50')
 
-  // Construir filtros
   const filtros = [
     eq(fornecedores.empresaId, empresa.id),
     eq(fornecedores.ativo, true),
   ]
+  const where = and(...filtros)
+
+  const [{ total }] = await db.select({ total: count() }).from(fornecedores).where(where)
 
   const lista = await db.query.fornecedores.findMany({
-    where: and(...filtros),
+    where,
     limit: porPagina,
     offset: (pagina - 1) * porPagina,
     orderBy: (t, { desc }) => [desc(t.criadoEm)],
@@ -45,7 +57,7 @@ export async function GET(req: NextRequest) {
     fornecedores: lista,
     pagina,
     porPagina,
-    total: lista.length,
+    total,
   })
 }
 
@@ -58,7 +70,15 @@ const schemaFornecedor = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const { userId, orgId } = await auth()
+  let userId: string | null = null
+  let orgId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+    orgId = authResult.orgId ?? null
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -82,7 +102,10 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const [fornecedor] = await db
+  const cnpjLimpo = parse.data.cnpj
+
+  // Tentar inserir; se já existe retornar o registro existente
+  const [inserido] = await db
     .insert(fornecedores)
     .values({
       empresaId: empresa.id,
@@ -92,5 +115,44 @@ export async function POST(req: NextRequest) {
     .onConflictDoNothing({ target: [fornecedores.cnpj, fornecedores.empresaId] })
     .returning()
 
-  return NextResponse.json(fornecedor, { status: 201 })
+  if (inserido) {
+    return NextResponse.json(inserido, { status: 201 })
+  }
+
+  // Já existia — retornar o registro existente para que o client possa enriquecer
+  const existente = await db.query.fornecedores.findFirst({
+    where: and(eq(fornecedores.cnpj, cnpjLimpo), eq(fornecedores.empresaId, empresa.id)),
+  })
+
+  return NextResponse.json(existente, { status: 200 })
+}
+
+// DELETE /api/fornecedores — exclui TODOS os fornecedores da empresa
+export async function DELETE(req: NextRequest) {
+  let userId: string | null = null
+  let orgId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+    orgId = authResult.orgId ?? null
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+  if (!userId || !orgId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+  const empresa = await db.query.empresas.findFirst({ where: eq(empresas.organizationId, orgId) })
+  if (!empresa) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 })
+
+  const { searchParams } = new URL(req.url)
+  const confirmar = searchParams.get('confirmar')
+  if (confirmar !== 'sim') {
+    return NextResponse.json({ error: 'Passe ?confirmar=sim para confirmar a exclusão' }, { status: 400 })
+  }
+
+  const resultado = await db
+    .delete(fornecedores)
+    .where(eq(fornecedores.empresaId, empresa.id))
+    .returning({ id: fornecedores.id })
+
+  return NextResponse.json({ excluidos: resultado.length })
 }

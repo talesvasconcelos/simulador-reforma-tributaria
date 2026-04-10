@@ -1,5 +1,6 @@
 // Cliente ReceitaWS — fallback para BrasilAPI
 // Rate limit: 3 req/min no plano gratuito
+// O controle de taxa é feito pelo BullMQ limiter no worker — não adicionar delay aqui.
 
 export interface DadosCnpjReceitaWS {
   status: string
@@ -25,27 +26,25 @@ export interface DadosCnpjReceitaWS {
   data_situacao: string
   capital_social: string
   simples: { optante: boolean; data_opcao: string; data_exclusao: string } | null
-  mei: { optante: boolean } | null
+  mei: { optante: boolean } | null    // campo legado (algumas versões)
+  simei: { optante: boolean } | null  // campo atual da ReceitaWS para MEI/SIMEI
 }
 
 /**
  * Consulta dados de um CNPJ na ReceitaWS.
  * Usar apenas como fallback da BrasilAPI.
- * Respeita o rate limit de 3 req/min com delay de 20s.
+ *
+ * @param respeitarRateLimit - Legado: mantido para compatibilidade, não tem efeito.
+ *   A taxa de chamadas é controlada pelo BullMQ limiter no worker.
  */
 export async function consultarCnpjReceitaWS(
   cnpj: string,
-  respeitarRateLimit = true
+  respeitarRateLimit = true, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<DadosCnpjReceitaWS> {
   const cnpjLimpo = cnpj.replace(/\D/g, '')
 
   if (cnpjLimpo.length !== 14) {
     throw new Error(`CNPJ inválido: ${cnpj}`)
-  }
-
-  // Rate limit: aguardar antes da chamada
-  if (respeitarRateLimit) {
-    await new Promise((r) => setTimeout(r, 20000))
   }
 
   const res = await fetch(
@@ -55,6 +54,10 @@ export async function consultarCnpjReceitaWS(
     }
   )
 
+  if (res.status === 429) {
+    throw new Error(`ReceitaWS rate limit (429) — job será retentado pelo BullMQ`)
+  }
+
   if (!res.ok) {
     throw new Error(`ReceitaWS error ${res.status}: ${await res.text()}`)
   }
@@ -62,7 +65,7 @@ export async function consultarCnpjReceitaWS(
   const dados = await res.json()
 
   if (dados.status === 'ERROR') {
-    throw new Error(`ReceitaWS: ${dados.message}`)
+    throw new Error(`ReceitaWS: ${dados.message ?? 'CNPJ não encontrado'}`)
   }
 
   return dados

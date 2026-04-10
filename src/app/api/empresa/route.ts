@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, clerkClient } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { empresas } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+
+export const dynamic = 'force-dynamic'
 
 const schemaNovaEmpresa = z.object({
   cnpj: z.string().regex(/^\d{14}$/, 'CNPJ deve ter 14 dígitos numéricos'),
@@ -29,9 +31,17 @@ const schemaNovaEmpresa = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const { userId, orgId } = await auth()
+  let userId: string | null = null
+  let orgId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+    orgId = authResult.orgId ?? null
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
-  if (!userId || !orgId) {
+  if (!userId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
@@ -46,6 +56,22 @@ export async function POST(req: NextRequest) {
   }
 
   const dados = parse.data
+
+  // Se ainda não há organização, cria uma no Clerk vinculada ao usuário
+  let novaOrg = false
+  if (!orgId) {
+    try {
+      const clerk = await clerkClient()
+      const org = await clerk.organizations.createOrganization({
+        name: dados.razaoSocial,
+        createdBy: userId,
+      })
+      orgId = org.id
+      novaOrg = true
+    } catch {
+      return NextResponse.json({ error: 'Erro ao criar organização' }, { status: 500 })
+    }
+  }
 
   const [empresa] = await db
     .insert(empresas)
@@ -68,11 +94,19 @@ export async function POST(req: NextRequest) {
     })
     .returning()
 
-  return NextResponse.json(empresa, { status: 201 })
+  return NextResponse.json({ ...empresa, orgId: novaOrg ? orgId : undefined }, { status: 201 })
 }
 
 export async function GET(req: NextRequest) {
-  const { userId, orgId } = await auth()
+  let userId: string | null = null
+  let orgId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+    orgId = authResult.orgId ?? null
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -90,7 +124,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { userId, orgId } = await auth()
+  let userId: string | null = null
+  let orgId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+    orgId = authResult.orgId ?? null
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })

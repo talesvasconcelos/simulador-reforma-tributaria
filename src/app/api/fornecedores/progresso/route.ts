@@ -4,9 +4,19 @@ import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and, count } from 'drizzle-orm'
 
+export const dynamic = 'force-dynamic'
+
 // Server-Sent Events para progresso de enriquecimento em tempo real
 export async function GET(req: NextRequest) {
-  const { userId, orgId } = await auth()
+  let userId: string | null = null
+  let orgId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+    orgId = authResult.orgId ?? null
+  } catch {
+    return new Response('Não autorizado', { status: 401 })
+  }
 
   if (!userId || !orgId) {
     return new Response('Não autorizado', { status: 401 })
@@ -39,27 +49,32 @@ export async function GET(req: NextRequest) {
 
         try {
           // Contagem por status
-          const [total, pendente, emProcessamento, concluido, erro] = await Promise.all([
+          const baseWhere = and(eq(fornecedores.empresaId, empresa.id), eq(fornecedores.ativo, true))
+          const [total, pendente, emProcessamento, concluido, erro, naoEncontrado] = await Promise.all([
+            db.select({ total: count() }).from(fornecedores).where(baseWhere),
             db.select({ total: count() }).from(fornecedores).where(
-              and(eq(fornecedores.empresaId, empresa.id), eq(fornecedores.ativo, true))
+              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'pendente'))
             ),
             db.select({ total: count() }).from(fornecedores).where(
-              and(eq(fornecedores.empresaId, empresa.id), eq(fornecedores.statusEnriquecimento, 'pendente'))
+              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'em_processamento'))
             ),
             db.select({ total: count() }).from(fornecedores).where(
-              and(eq(fornecedores.empresaId, empresa.id), eq(fornecedores.statusEnriquecimento, 'em_processamento'))
+              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'concluido'))
             ),
             db.select({ total: count() }).from(fornecedores).where(
-              and(eq(fornecedores.empresaId, empresa.id), eq(fornecedores.statusEnriquecimento, 'concluido'))
+              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'erro'))
             ),
             db.select({ total: count() }).from(fornecedores).where(
-              and(eq(fornecedores.empresaId, empresa.id), eq(fornecedores.statusEnriquecimento, 'erro'))
+              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'nao_encontrado'))
             ),
           ])
 
           const totalN = total[0].total
           const concluidoN = concluido[0].total
-          const percentualConcluido = totalN > 0 ? Math.round((concluidoN / totalN) * 100) : 0
+          const naoEncontradoN = naoEncontrado[0].total
+          // Processados = concluido + nao_encontrado (ambos já foram tentados)
+          const processadosN = concluidoN + naoEncontradoN
+          const percentualConcluido = totalN > 0 ? Math.min(100, Math.round((processadosN / totalN) * 100)) : 0
 
           enviar({
             total: totalN,
@@ -67,6 +82,7 @@ export async function GET(req: NextRequest) {
             emProcessamento: emProcessamento[0].total,
             concluido: concluidoN,
             erro: erro[0].total,
+            naoEncontrado: naoEncontradoN,
             percentualConcluido,
           })
 

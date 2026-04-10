@@ -38,8 +38,8 @@ export async function indexarDocumento(params: ParamsIndexacao): Promise<string>
     // 2. Dividir em chunks
     const chunks = await dividirEmChunks(conteudo)
 
-    // 3. Gerar embeddings em lote (máximo 100 por vez para respeitar limites da API)
-    const TAMANHO_LOTE = 100
+    // 3. Gerar embeddings em lote — free tier: 3 RPM, 10K TPM → máx ~10 chunks por lote
+    const TAMANHO_LOTE = 10
     let chunkIndex = 0
 
     for (let i = 0; i < chunks.length; i += TAMANHO_LOTE) {

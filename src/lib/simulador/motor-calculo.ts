@@ -77,18 +77,19 @@ export function calcularImpacto(params: ParamsCalculo): ResultadoCalculo {
   // Alíquotas com redução setorial aplicada
   const cbsEfetiva = calcularAliquotaEfetiva(cronograma.aliquotaCbs, setor) / 100
   const ibsEfetiva = calcularAliquotaEfetiva(cronograma.aliquotaIbs, setor) / 100
+  const percentualCbs = (cronograma.percentualCbsVigente ?? 100) / 100
   const percentualIbs = cronograma.percentualIbsVigente / 100
 
   let cbsBruto = 0
   let ibsBruto = 0
 
   if (regime !== 'isento' && regime !== 'simples_nacional' && regime !== 'mei' && regime !== 'nanoempreendedor') {
-    cbsBruto = isExportadora ? 0 : faturamentoAnual * cbsEfetiva
+    cbsBruto = isExportadora ? 0 : faturamentoAnual * cbsEfetiva * percentualCbs
     ibsBruto = isExportadora ? 0 : faturamentoAnual * ibsEfetiva * percentualIbs
   } else if (regime === 'simples_nacional' || regime === 'mei' || regime === 'nanoempreendedor') {
     // Simples recolhe CBS+IBS em alíquota diferenciada (~5% total estimado)
     const aliquotaSimples = faturamentoAnual * 0.05
-    cbsBruto = aliquotaSimples * 0.35 // proporção CBS no Simples
+    cbsBruto = aliquotaSimples * 0.35 * percentualCbs // proporção CBS no Simples
     ibsBruto = aliquotaSimples * 0.65 * percentualIbs
   }
 
@@ -130,7 +131,12 @@ export function calcularImpacto(params: ParamsCalculo): ResultadoCalculo {
   // Gerar alertas contextuais
   if (configSetor.reducaoPercentual > 0) {
     alertas.push(
-      `Seu setor tem redução de ${configSetor.reducaoPercentual}% nas alíquotas — benefício garantido por lei (${configSetor.observacao})`
+      `Seu setor tem redução de ${configSetor.reducaoPercentual}% nas alíquotas — benefício garantido por lei.`
+    )
+  }
+  if (configSetor.creditoVedado) {
+    alertas.push(
+      'Atenção: o Art. 283 da LC 214/2025 veda ao adquirente dos seus serviços o aproveitamento de crédito de CBS e IBS. Isso afeta a atratividade da sua empresa para clientes de Lucro Real/Presumido — eles não poderão usar sua nota como crédito.'
     )
   }
   if (cronograma.pisCofinExtinto && ano === 2027) {
@@ -157,7 +163,7 @@ export function calcularImpacto(params: ParamsCalculo): ResultadoCalculo {
     cargaFutura,
     variacaoAbsoluta,
     variacaoPercentual,
-    percentualCbsVigente: cronograma.percentualIbsVigente === 0 ? (ano >= 2027 ? 100 : 10) : 100,
+    percentualCbsVigente: cronograma.percentualCbsVigente ?? 100,
     percentualIbsVigente: cronograma.percentualIbsVigente,
     percentualIcmsIssRestante: cronograma.percentualIcmsIssRestante,
     alertas,

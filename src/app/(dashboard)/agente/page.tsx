@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send } from 'lucide-react'
+import { Send, MessageSquare } from 'lucide-react'
 
 interface Mensagem {
   role: 'user' | 'assistant'
@@ -36,8 +36,6 @@ export default function AgentePage() {
     setInput('')
     setCarregando(true)
 
-    // Mensagem temporária do assistente
-    const idxAssistente = mensagens.length + 1
     setMensagens((prev) => [...prev, { role: 'assistant', conteudo: '' }])
 
     try {
@@ -76,12 +74,10 @@ export default function AgentePage() {
             })
           }
 
-          if (dados.sessionId) {
-            setSessionId(dados.sessionId)
-          }
+          if (dados.sessionId) setSessionId(dados.sessionId)
         }
       }
-    } catch (e) {
+    } catch {
       setMensagens((prev) => {
         const novas = [...prev]
         novas[novas.length - 1] = {
@@ -97,24 +93,17 @@ export default function AgentePage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-slate-900">Agente de Dúvidas</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Especialista em Reforma Tributária com base na LC 214/2025
-        </p>
-      </div>
-
       {/* Área de mensagens */}
-      <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto bg-card rounded-2xl border border-border shadow-sm p-5 space-y-4">
         {mensagens.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-              <span className="text-3xl">💬</span>
+            <div className="w-16 h-16 bg-purple-50 dark:bg-purple-900/20 rounded-2xl flex items-center justify-center mb-5">
+              <MessageSquare className="w-8 h-8 text-purple-600 dark:text-purple-400" />
             </div>
-            <h3 className="font-semibold text-slate-900 mb-2">
+            <h3 className="font-semibold text-foreground text-base mb-2">
               Como posso ajudar?
             </h3>
-            <p className="text-slate-500 text-sm mb-6">
+            <p className="text-muted-foreground/70 text-sm mb-7 max-w-sm">
               Tire suas dúvidas sobre a Reforma Tributária. Minhas respostas são baseadas na LC 214/2025.
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
@@ -122,7 +111,7 @@ export default function AgentePage() {
                 <button
                   key={s}
                   onClick={() => enviar(s)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm rounded-lg transition-colors"
+                  className="px-3 py-1.5 bg-muted hover:bg-accent text-muted-foreground hover:text-foreground text-sm rounded-xl transition-colors border border-border/60"
                 >
                   {s}
                 </button>
@@ -134,17 +123,17 @@ export default function AgentePage() {
         {mensagens.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-2xl px-4 py-3 rounded-2xl text-sm ${
+              className={`max-w-2xl px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                 msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 text-slate-900'
+                  ? 'bg-blue-600 text-white rounded-br-md'
+                  : 'bg-muted text-foreground rounded-bl-md border border-border/60'
               }`}
             >
               {msg.role === 'assistant' && !msg.conteudo && carregando ? (
-                <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="flex gap-1 py-1">
+                  <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               ) : (
                 <div className="whitespace-pre-wrap">{msg.conteudo}</div>
@@ -163,12 +152,12 @@ export default function AgentePage() {
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && enviar(input)}
           placeholder="Digite sua pergunta sobre a Reforma Tributária..."
           disabled={carregando}
-          className="flex-1 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+          className="flex-1 border border-border rounded-2xl px-4 py-3 text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow disabled:opacity-60"
         />
         <button
           onClick={() => enviar(input)}
           disabled={carregando || !input.trim()}
-          className="w-12 h-12 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center"
+          className="w-12 h-12 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center shadow-sm shadow-blue-600/20 flex-shrink-0"
         >
           <Send className="w-4 h-4" />
         </button>

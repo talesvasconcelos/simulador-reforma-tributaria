@@ -40,7 +40,9 @@ export interface AnaliseEstrategica {
   precoMedioMensal: number
   percentualCredito: number
   creditoMensal: number
+  creditoPotencialMensal: number   // Crédito que seria obtido se comprador fosse Lucro Real/Presumido
   custoEfetivo: number
   economia: number
   recomendacao: 'manter' | 'renegociar' | 'avaliar_substituto'
+  creditoVedado?: boolean
 }

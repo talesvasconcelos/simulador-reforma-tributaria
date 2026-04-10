@@ -1,24 +1,22 @@
 import { Queue } from 'bullmq'
 import IORedis from 'ioredis'
 
-// Conexão Upstash Redis via IORedis
 export function criarConexaoRedis() {
-  return new IORedis(process.env.UPSTASH_REDIS_REST_URL!, {
-    password: process.env.UPSTASH_REDIS_REST_TOKEN,
+  const restUrl = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (!restUrl || !token) throw new Error('UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN não configurados')
+
+  // Upstash fornece REST URL (https://...) — IORedis precisa de rediss://
+  // Extraímos o hostname e montamos a URL Redis padrão
+  const hostname = restUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+  const redisUrl = `rediss://default:${token}@${hostname}:6380`
+
+  return new IORedis(redisUrl, {
     maxRetriesPerRequest: null,
-    tls: process.env.UPSTASH_REDIS_REST_URL?.startsWith('rediss://') ? {} : undefined,
+    tls: {},
+    lazyConnect: true,
   })
 }
-
-const connection = criarConexaoRedis()
-
-export const filaCnpj = new Queue('enriquecimento-cnpj', {
-  connection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 60000 }, // 1min, 2min, 4min
-  },
-})
 
 export interface JobEnriquecimento {
   cnpj: string
@@ -26,11 +24,34 @@ export interface JobEnriquecimento {
   empresaId: string
 }
 
+// Lazy — só cria a fila quando efetivamente usada
+let _filaCnpj: Queue | undefined
+
+function getFilaCnpj(): Queue {
+  if (!_filaCnpj) {
+    const connection = criarConexaoRedis()
+    _filaCnpj = new Queue('enriquecimento-cnpj', {
+      connection,
+      defaultJobOptions: {
+        // Sem pressa: 10 tentativas com backoff exponencial de 5 min.
+        // Cronograma aproximado de retentativas por job:
+        //   1ª: 5 min   | 2ª: 10 min  | 3ª: 20 min  | 4ª: 40 min
+        //   5ª: 80 min  | 6ª: 160 min | 7ª: ~5h     | 8ª: ~11h
+        //   9ª: ~21h    | 10ª: ~42h
+        // Cobre qualquer indisponibilidade transiente das APIs públicas.
+        attempts: 10,
+        backoff: { type: 'exponential', delay: 5 * 60 * 1000 }, // 5 min inicial
+      },
+    })
+  }
+  return _filaCnpj
+}
+
 export async function adicionarNaFila(jobs: JobEnriquecimento[]): Promise<void> {
+  const fila = getFilaCnpj()
   const jobsFormatados = jobs.map((j) => ({
     name: 'enriquecer-cnpj',
     data: j,
   }))
-
-  await filaCnpj.addBulk(jobsFormatados)
+  await fila.addBulk(jobsFormatados)
 }

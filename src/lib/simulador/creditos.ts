@@ -30,6 +30,18 @@ export interface ResultadoCredito {
 export function calcularCreditos(params: ParamsCredito): ResultadoCredito {
   const { regime, comprasAnuais, cronograma, setor } = params
 
+  // 2026: período de teste — CBS/IBS apenas informativo, sem crédito (Art. 359 LC 214/2025)
+  if (cronograma.isAnoDeTeste) {
+    return {
+      creditoCbs: 0,
+      creditoIbs: 0,
+      totalCredito: 0,
+      baseCalculo: comprasAnuais,
+      percentualEfetivo: 0,
+      metodologia: '2026 — período de teste: CBS/IBS informativos, sem crédito apropriável',
+    }
+  }
+
   // Alíquotas efetivas com redução setorial
   const cbsEfetiva = calcularAliquotaEfetiva(cronograma.aliquotaCbs, setor) / 100
   const ibsEfetiva = calcularAliquotaEfetiva(cronograma.aliquotaIbs, setor) / 100

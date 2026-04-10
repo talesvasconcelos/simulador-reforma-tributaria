@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { atualizarNovidades } from '@/lib/ai/agente-novidades'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   // Verificar secret do cron job
   const authHeader = req.headers.get('authorization')

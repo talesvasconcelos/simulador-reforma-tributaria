@@ -7,13 +7,23 @@ import { eq, desc } from 'drizzle-orm'
 import { consultarAgente } from '@/lib/ai/agente-duvidas'
 import { buscarChunksSimilares } from '@/lib/rag/buscar'
 
+export const dynamic = 'force-dynamic'
+
 const schemaChat = z.object({
   pergunta: z.string().min(3).max(2000),
   sessionId: z.string().uuid().optional(),
 })
 
 export async function POST(req: NextRequest) {
-  const { userId, orgId } = await auth()
+  let userId: string | null = null
+  let orgId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+    orgId = authResult.orgId ?? null
+  } catch {
+    return new Response('Não autorizado', { status: 401 })
+  }
 
   if (!userId || !orgId) {
     return new Response('Não autorizado', { status: 401 })

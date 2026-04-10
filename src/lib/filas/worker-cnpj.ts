@@ -19,10 +19,13 @@ export function iniciarWorkerCnpj() {
     },
     {
       connection,
-      concurrency: 5,
+      // BrasilAPI: sem rate limit oficial, mas throttling acima de ~5/min.
+      // ReceitaWS free: 3 req/min.
+      // 2 workers simultâneos + 4/min como teto garante estabilidade para qualquer volume.
+      concurrency: 2,
       limiter: {
-        max: 10,
-        duration: 60000, // 10 req/min para respeitar rate limits das APIs
+        max: 4,
+        duration: 60000, // 4 req/min
       },
     }
   )

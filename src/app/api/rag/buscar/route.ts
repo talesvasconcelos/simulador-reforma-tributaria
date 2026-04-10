@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import { buscarChunksSimilares } from '@/lib/rag/buscar'
 
+export const dynamic = 'force-dynamic'
+
 const schemaBusca = z.object({
   pergunta: z.string().min(3),
   limite: z.number().int().min(1).max(20).optional(),
@@ -10,7 +12,13 @@ const schemaBusca = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth()
+  let userId: string | null = null
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
   if (!userId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })

@@ -32,14 +32,29 @@ export const setorEnum = pgEnum('setor', [
   'comercio_atacado',
   'comercio_varejo',
   'servicos',
+  'profissionais_liberais',
   'servicos_saude',
   'servicos_educacao',
   'servicos_financeiros',
   'agronegocio',
   'construcao_civil',
+  'construcao_edificios',
+  'construcao_infraestrutura',
+  'construcao_servicos_especializados',
   'transporte',
+  'transporte_coletivo_passageiros',
+  'transporte_cargas',
+  'imoveis',
+  'combustiveis_energia',
   'tecnologia',
   'misto',
+  // Setores adicionados — classificador.ts e aliquotas.ts
+  'hotelaria',
+  'parques_diversao',
+  'fii_fiagro',
+  'telecomunicacoes',
+  'entidades_desportivas',
+  'entidades_religiosas',
 ])
 
 export const statusEnriquecimentoEnum = pgEnum('status_enriquecimento', [
@@ -151,7 +166,11 @@ export const fornecedores = pgTable('fornecedores', {
 
   // Dados financeiros do relacionamento
   valorMedioComprasMensal: numeric('valor_medio_compras_mensal', { precision: 18, scale: 2 }),
+  precoReferencia: numeric('preco_referencia', { precision: 18, scale: 2 }),
   categoriaCompra: varchar('categoria_compra', { length: 200 }),
+
+  // Opção do Simples Nacional de recolher CBS/IBS fora do DAS (gera crédito integral ao comprador)
+  opcaoCbsIbsPorFora: boolean('opcao_cbs_ibs_por_fora').default(false),
 
   // Status de enriquecimento
   statusEnriquecimento: statusEnriquecimentoEnum('status_enriquecimento').default('pendente').notNull(),
@@ -336,4 +355,27 @@ export const filaEnriquecimento = pgTable('fila_enriquecimento', {
 }, (table) => ({
   statusIdx: index('fila_status_idx').on(table.status),
   cnpjIdx: index('fila_cnpj_idx').on(table.cnpj),
+}))
+
+// ============================================================
+// FATURAMENTO MENSAL — Dados reais importados pelo usuário
+// ============================================================
+
+export const faturamentoMensal = pgTable('faturamento_mensal', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  empresaId: uuid('empresa_id').references(() => empresas.id, { onDelete: 'cascade' }).notNull(),
+
+  competencia: varchar('competencia', { length: 7 }).notNull(), // "2025-01"
+  anoReferencia: integer('ano_referencia').notNull(),
+
+  valorTotal: numeric('valor_total', { precision: 18, scale: 2 }).notNull(),
+  valorB2B: numeric('valor_b2b', { precision: 18, scale: 2 }),
+  valorPublico: numeric('valor_publico', { precision: 18, scale: 2 }),
+  valorB2C: numeric('valor_b2c', { precision: 18, scale: 2 }),
+
+  criadoEm: timestamp('criado_em').defaultNow().notNull(),
+}, (table) => ({
+  empresaCompetenciaIdx: uniqueIndex('fat_mensal_empresa_competencia_idx').on(table.empresaId, table.competencia),
+  empresaIdx: index('fat_mensal_empresa_idx').on(table.empresaId),
+  anoIdx: index('fat_mensal_ano_idx').on(table.anoReferencia),
 }))

@@ -80,22 +80,23 @@ export default function SimuladorPage() {
       ]
     : []
 
+  const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow'
+  const labelCls = 'text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5'
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">Simulador Tributário</h1>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Formulário */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <h2 className="font-semibold text-slate-900 mb-4">Parâmetros</h2>
-          <div className="space-y-3">
+        {/* Painel de parâmetros */}
+        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border/60 bg-muted/50">
+            <h2 className="text-sm font-semibold text-foreground/80">Parâmetros da Empresa</h2>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">Informe os dados para calcular o impacto</p>
+          </div>
+          <div className="p-5 space-y-4">
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Regime</label>
-              <select
-                value={params.regime}
-                onChange={(e) => setParams((p) => ({ ...p, regime: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-              >
+              <label className={labelCls}>Regime Tributário</label>
+              <select value={params.regime} onChange={(e) => setParams((p) => ({ ...p, regime: e.target.value }))} className={inputCls}>
                 <option value="simples_nacional">Simples Nacional</option>
                 <option value="mei">MEI</option>
                 <option value="lucro_presumido">Lucro Presumido</option>
@@ -103,99 +104,78 @@ export default function SimuladorPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">Setor</label>
-              <select
-                value={params.setor}
-                onChange={(e) => setParams((p) => ({ ...p, setor: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="servicos">Serviços</option>
-                <option value="servicos_saude">Serviços de Saúde</option>
-                <option value="servicos_educacao">Serviços de Educação</option>
+              <label className={labelCls}>Setor de Atividade</label>
+              <select value={params.setor} onChange={(e) => setParams((p) => ({ ...p, setor: e.target.value }))} className={inputCls}>
+                <option value="servicos">Serviços Gerais</option>
+                <option value="profissionais_liberais">Profissionais Liberais</option>
+                <option value="servicos_saude">Saúde</option>
+                <option value="servicos_educacao">Educação</option>
+                <option value="servicos_financeiros">Serviços Financeiros</option>
                 <option value="industria">Indústria</option>
                 <option value="comercio_varejo">Comércio Varejo</option>
+                <option value="comercio_atacado">Comércio Atacado</option>
                 <option value="agronegocio">Agronegócio</option>
-                <option value="construcao_civil">Construção Civil</option>
+                <option value="construcao_edificios">Construção — Edifícios</option>
+                <option value="construcao_infraestrutura">Construção — Infraestrutura</option>
+                <option value="construcao_servicos_especializados">Construção — Serv. Especializados</option>
+                <option value="transporte_coletivo_passageiros">Transp. Coletivo Passageiros</option>
+                <option value="transporte_cargas">Transporte de Cargas / Aéreo</option>
+                <option value="imoveis">Atividades Imobiliárias</option>
                 <option value="tecnologia">Tecnologia</option>
               </select>
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">
-                Faturamento Anual (R$)
-              </label>
-              <input
-                type="number"
-                value={params.faturamentoAnual}
-                onChange={(e) =>
-                  setParams((p) => ({ ...p, faturamentoAnual: Number(e.target.value) }))
-                }
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">ICMS (%)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={params.aliquotaIcms}
-                  onChange={(e) =>
-                    setParams((p) => ({ ...p, aliquotaIcms: Number(e.target.value) }))
-                  }
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">ISS (%)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={params.aliquotaIss}
-                  onChange={(e) =>
-                    setParams((p) => ({ ...p, aliquotaIss: Number(e.target.value) }))
-                  }
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
+
+            <div className="pt-1 pb-1 border-t border-border/60">
+              <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest mb-3">Valores Anuais</p>
+              <div className="space-y-3">
+                <div>
+                  <label className={labelCls}>Faturamento (R$)</label>
+                  <input type="number" value={params.faturamentoAnual} onChange={(e) => setParams((p) => ({ ...p, faturamentoAnual: Number(e.target.value) }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Compras (R$)</label>
+                  <input type="number" value={params.comprasAnuais} onChange={(e) => setParams((p) => ({ ...p, comprasAnuais: Number(e.target.value) }))} className={inputCls} />
+                </div>
               </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">
-                Compras Anuais (R$)
-              </label>
-              <input
-                type="number"
-                value={params.comprasAnuais}
-                onChange={(e) =>
-                  setParams((p) => ({ ...p, comprasAnuais: Number(e.target.value) }))
-                }
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-              />
+
+            <div className="pt-1 pb-1 border-t border-border/60">
+              <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest mb-3">Alíquotas Atuais</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>ICMS (%)</label>
+                  <input type="number" step="0.5" value={params.aliquotaIcms} onChange={(e) => setParams((p) => ({ ...p, aliquotaIcms: Number(e.target.value) }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>ISS (%)</label>
+                  <input type="number" step="0.5" value={params.aliquotaIss} onChange={(e) => setParams((p) => ({ ...p, aliquotaIss: Number(e.target.value) }))} className={inputCls} />
+                </div>
+              </div>
             </div>
+
             <button
               onClick={calcular}
               disabled={carregando}
-              className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60"
+              className="w-full bg-gradient-to-br from-blue-600 to-blue-700 text-white py-2.5 rounded-xl text-sm font-semibold hover:from-blue-500 hover:to-blue-700 transition-all shadow-sm shadow-blue-600/20 disabled:opacity-60"
             >
-              {carregando ? 'Calculando...' : 'Calcular'}
+              {carregando ? 'Calculando...' : 'Calcular Impacto'}
             </button>
           </div>
         </div>
 
-        {/* Resultados */}
+        {/* Área de resultados */}
         <div className="lg:col-span-2 space-y-4">
+
           {/* Seletor de ano */}
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap bg-card rounded-2xl border border-border p-2 shadow-sm">
             {anos.map((ano) => (
               <button
                 key={ano}
-                onClick={() => {
-                  setAnoSelecionado(ano)
-                  if (resultado) calcular()
-                }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                onClick={() => { setAnoSelecionado(ano); calcular() }}
+                className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold transition-all ${
                   anoSelecionado === ano
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground/80'
                 }`}
               >
                 {ano}
@@ -205,32 +185,29 @@ export default function SimuladorPage() {
 
           {resultado && (
             <>
-              {/* Cards de resultado */}
+              {/* KPI cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                  <p className="text-xs text-slate-500 mb-1">Carga Atual</p>
-                  <p className="text-lg font-bold">{formatarMoeda(resultado.cargaAtual)}</p>
+                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-2">Carga Atual</p>
+                  <p className="num text-lg font-bold text-foreground tabular-nums">{formatarMoeda(resultado.cargaAtual)}</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Sistema vigente</p>
                 </div>
-                <div className={`bg-white rounded-xl border p-4 ${
-                  resultado.variacaoPercentual > 0 ? 'border-red-200' : 'border-green-200'
-                }`}>
-                  <p className="text-xs text-slate-500 mb-1">Carga Futura</p>
-                  <p className="text-lg font-bold">{formatarMoeda(resultado.cargaFutura)}</p>
+                <div className={`bg-card rounded-2xl border p-4 shadow-sm ${resultado.variacaoPercentual > 0 ? 'border-red-200' : 'border-green-200'}`}>
+                  <p className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-2">Carga {anoSelecionado}</p>
+                  <p className="num text-lg font-bold text-foreground tabular-nums">{formatarMoeda(resultado.cargaFutura)}</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Novo sistema</p>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                  <p className="text-xs text-slate-500 mb-1">Variação</p>
-                  <p className={`text-lg font-bold ${
-                    resultado.variacaoPercentual > 0 ? 'text-red-600' : 'text-green-600'
-                  }`}>
-                    {resultado.variacaoPercentual > 0 ? '+' : ''}
-                    {resultado.variacaoPercentual.toFixed(1)}%
+                <div className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-2">Variação</p>
+                  <p className={`num text-lg font-bold tabular-nums ${resultado.variacaoPercentual > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {resultado.variacaoPercentual > 0 ? '+' : ''}{resultado.variacaoPercentual.toFixed(1)}%
                   </p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">vs. sistema atual</p>
                 </div>
-                <div className="bg-white rounded-xl border border-green-200 p-4">
-                  <p className="text-xs text-slate-500 mb-1">Créditos Estimados</p>
-                  <p className="text-lg font-bold text-green-600">
-                    {formatarMoeda(resultado.creditos.totalCredito)}
-                  </p>
+                <div className="bg-card rounded-2xl border border-green-200 p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-2">Créditos</p>
+                  <p className="num text-lg font-bold text-green-600 tabular-nums">{formatarMoeda(resultado.creditos.totalCredito)}</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">CBS + IBS estimado</p>
                 </div>
               </div>
 
@@ -238,10 +215,8 @@ export default function SimuladorPage() {
               {resultado.alertas.length > 0 && (
                 <div className="space-y-2">
                   {resultado.alertas.map((alerta, i) => (
-                    <div
-                      key={i}
-                      className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm"
-                    >
+                    <div key={i} className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm">
+                      <span className="text-blue-500 font-bold flex-shrink-0">ℹ</span>
                       {alerta}
                     </div>
                   ))}
@@ -249,17 +224,20 @@ export default function SimuladorPage() {
               )}
 
               {/* Gráfico comparativo */}
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <h3 className="font-semibold text-slate-900 mb-4">Comparativo por Tributo</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={dadosGraficoComparativo}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="tributo" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value) => formatarMoeda(Number(value))} />
-                    <Legend />
-                    <Bar dataKey="atual" name="Sistema Atual" fill="#94a3b8" />
-                    <Bar dataKey="futuro" name="Sistema Novo" fill="#3b82f6" />
+              <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+                <div className="mb-4">
+                  <h3 className="font-semibold text-foreground text-sm">Comparativo por Tributo — {anoSelecionado}</h3>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">Sistema atual (cinza) vs. novo (azul)</p>
+                </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={dadosGraficoComparativo} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="tributo" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={70} tickFormatter={(v) => `R$${(v/1000).toFixed(0)}K`} />
+                    <Tooltip formatter={(value) => formatarMoeda(Number(value))} contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
+                    <Bar dataKey="atual" name="Sistema Atual" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="futuro" name="Sistema Novo" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -268,22 +246,20 @@ export default function SimuladorPage() {
 
           {/* Gráfico de projeção */}
           {projecao && (
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <h3 className="font-semibold text-slate-900 mb-4">Projeção 2026–2033</h3>
-              <ResponsiveContainer width="100%" height={200}>
+            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+              <div className="mb-4">
+                <h3 className="font-semibold text-foreground text-sm">Projeção da Carga Tributária — 2026 a 2033</h3>
+                <p className="text-xs text-muted-foreground/70 mt-0.5">Transição gradual do sistema atual para o novo</p>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={dadosGraficoProjecao}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="ano" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(value) => formatarMoeda(Number(value))} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="Carga Atual"
-                    stroke="#94a3b8"
-                    strokeDasharray="5 5"
-                  />
-                  <Line type="monotone" dataKey="Carga Futura" stroke="#3b82f6" strokeWidth={2} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="ano" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={70} tickFormatter={(v) => `R$${(v/1000).toFixed(0)}K`} />
+                  <Tooltip formatter={(value) => formatarMoeda(Number(value))} contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
+                  <Line type="monotone" dataKey="Carga Atual" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="6 3" dot={false} />
+                  <Line type="monotone" dataKey="Carga Futura" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
