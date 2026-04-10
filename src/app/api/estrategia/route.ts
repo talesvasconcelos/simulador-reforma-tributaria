@@ -34,12 +34,27 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const ano = parseInt(searchParams.get('ano') ?? '2027')
 
-  // Buscar fornecedores com dados de enriquecimento
+  // Buscar fornecedores — apenas colunas necessárias para o cálculo (evita dadosApiCnpj + campos grandes)
   const lista = await db.query.fornecedores.findMany({
     where: and(
       eq(fornecedores.empresaId, empresa.id),
       eq(fornecedores.ativo, true),
     ),
+    columns: {
+      id: true,
+      cnpj: true,
+      nomeErp: true,
+      razaoSocial: true,
+      regime: true,
+      setor: true,
+      geraCredito: true,
+      percentualCreditoEstimado: true,
+      valorMedioComprasMensal: true,
+      precoReferencia: true,
+      opcaoCbsIbsPorFora: true,
+      statusEnriquecimento: true,
+      ativo: true,
+    },
   })
 
   // precoReferencia (manual) tem prioridade sobre valorMedioComprasMensal (importação/CSV)

@@ -61,6 +61,8 @@ export async function GET(req: NextRequest) {
     limit: porPagina,
     offset: (pagina - 1) * porPagina,
     orderBy: (t, { desc }) => [desc(t.criadoEm)],
+    // Exclui campo jsonb grande — não é exibido na listagem
+    columns: { dadosApiCnpj: false },
   })
 
   return NextResponse.json({

@@ -189,6 +189,9 @@ export const fornecedores = pgTable('fornecedores', {
   cnpjIdx: index('fornecedores_cnpj_idx').on(table.cnpj),
   statusIdx: index('fornecedores_status_idx').on(table.statusEnriquecimento),
   cnpjEmpresaIdx: uniqueIndex('fornecedores_cnpj_empresa_idx').on(table.cnpj, table.empresaId),
+  // Índices compostos — cobrem os filtros mais frequentes (empresa + ativo, empresa + status + ativo)
+  empresaAtivoIdx: index('fornecedores_empresa_ativo_idx').on(table.empresaId, table.ativo),
+  empresaStatusAtivoIdx: index('fornecedores_empresa_status_ativo_idx').on(table.empresaId, table.statusEnriquecimento, table.ativo),
 }))
 
 // ============================================================
