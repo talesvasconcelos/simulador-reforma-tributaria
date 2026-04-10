@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { calcularCustoEfetivo, projetarEconomiaAnual } from '@/lib/simulador/analise-fornecedores'
+import { labelSetor } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,6 +98,47 @@ export async function GET(req: NextRequest) {
     ? 0
     : analises.reduce((sum, a) => sum + a.creditoPotencialMensal, 0)
 
+  // Dashboard de crédito perdido por setor do fornecedor
+  // Agrupa todos os fornecedores com preço por setor e calcula % de crédito médio
+  const porSetor = analises.reduce<Record<string, {
+    setor: string
+    label: string
+    qtdFornecedores: number
+    totalComprasMensal: number
+    totalCreditoMensal: number
+    percentualCreditoMedio: number
+  }>>((acc, a) => {
+    const key = a.setor
+    if (!acc[key]) {
+      acc[key] = {
+        setor: key,
+        label: labelSetor(key),
+        qtdFornecedores: 0,
+        totalComprasMensal: 0,
+        totalCreditoMensal: 0,
+        percentualCreditoMedio: 0,
+      }
+    }
+    acc[key].qtdFornecedores++
+    acc[key].totalComprasMensal += a.precoMedioMensal
+    acc[key].totalCreditoMensal += a.creditoMensal
+    return acc
+  }, {})
+
+  const analisesPorSetor = Object.values(porSetor)
+    .map((s) => ({
+      ...s,
+      percentualCreditoMedio: s.totalComprasMensal > 0
+        ? (s.totalCreditoMensal / s.totalComprasMensal) * 100
+        : 0,
+      totalComprasAnual: s.totalComprasMensal * 12,
+      totalCreditoAnual: s.totalCreditoMensal * 12,
+      creditoPerdidoAnual: podeApropriarCredito
+        ? 0
+        : s.totalCreditoMensal * 12,  // para Simples/MEI, todo crédito potencial é perdido
+    }))
+    .sort((a, b) => a.percentualCreditoMedio - b.percentualCreditoMedio) // menor crédito primeiro
+
   return NextResponse.json({
     analises,
     resumo: {
@@ -113,6 +155,7 @@ export async function GET(req: NextRequest) {
       podeApropriarCredito,
     },
     economiaAnual,
+    analisesPorSetor,
     ano,
   })
 }

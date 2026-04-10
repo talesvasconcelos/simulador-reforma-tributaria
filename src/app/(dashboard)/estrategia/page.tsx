@@ -37,6 +37,17 @@ export default function EstrategiaPage() {
     podeApropriarCredito: boolean
   } | null>(null)
   const [economiaAnual, setEconomiaAnual] = useState<Record<number, number>>({})
+  const [analisesPorSetor, setAnalisesPorSetor] = useState<Array<{
+    setor: string
+    label: string
+    qtdFornecedores: number
+    totalComprasMensal: number
+    totalCreditoMensal: number
+    percentualCreditoMedio: number
+    totalComprasAnual: number
+    totalCreditoAnual: number
+    creditoPerdidoAnual: number
+  }>>([])
   const [carregando, setCarregando] = useState(true)
 
   useEffect(() => {
@@ -47,6 +58,7 @@ export default function EstrategiaPage() {
         setAnalises(d.analises ?? [])
         setResumo(d.resumo)
         setEconomiaAnual(d.economiaAnual ?? {})
+        setAnalisesPorSetor(d.analisesPorSetor ?? [])
         setCarregando(false)
       })
   }, [anoSelecionado])
@@ -162,6 +174,93 @@ export default function EstrategiaPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Dashboard de crédito por tipo de atividade */}
+      {analisesPorSetor.length > 0 && (
+        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border/60 bg-muted/50">
+            <h2 className="font-semibold text-foreground/80 text-sm">Crédito Obtido por Tipo de Atividade — {anoSelecionado}</h2>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
+              Do menor para o maior percentual de crédito CBS+IBS — identifique as atividades com menor aproveitamento
+            </p>
+          </div>
+          <div className="p-5">
+            <ResponsiveContainer width="100%" height={Math.max(180, analisesPorSetor.length * 36)}>
+              <BarChart
+                data={analisesPorSetor.map((s) => ({
+                  label: s.label,
+                  '% Crédito': parseFloat(s.percentualCreditoMedio.toFixed(2)),
+                  qtd: s.qtdFornecedores,
+                }))}
+                layout="vertical"
+                barCategoryGap="25%"
+                margin={{ left: 8, right: 40, top: 4, bottom: 4 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 11, fill: '#94a3b8' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${v}%`}
+                  domain={[0, 'dataMax']}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={180}
+                />
+                <Tooltip
+                  formatter={(v, _name, props) => [
+                    `${Number(v).toFixed(2)}% (${props.payload?.qtd} fornecedor${props.payload?.qtd !== 1 ? 'es' : ''})`,
+                    '% Crédito médio'
+                  ]}
+                  contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                />
+                <Bar dataKey="% Crédito" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {/* Tabela detalhe por setor */}
+          <div className="border-t border-border/60 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40">
+                <tr>
+                  <th className="text-left px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Atividade</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Fornecedores</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Compras/ano</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Crédito/ano</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">% Crédito</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {analisesPorSetor.map((s) => (
+                  <tr key={s.setor} className="hover:bg-accent/30 transition-colors">
+                    <td className="px-5 py-3 font-medium text-foreground">{s.label}</td>
+                    <td className="px-5 py-3 text-right text-muted-foreground num">{s.qtdFornecedores}</td>
+                    <td className="px-5 py-3 text-right text-foreground num">{formatarMoeda(s.totalComprasAnual)}</td>
+                    <td className="px-5 py-3 text-right text-green-600 font-semibold num">{formatarMoeda(s.totalCreditoAnual)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
+                        s.percentualCreditoMedio < 2
+                          ? 'bg-red-100 text-red-700'
+                          : s.percentualCreditoMedio < 10
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-green-100 text-green-700'
+                      }`}>
+                        {s.percentualCreditoMedio.toFixed(2)}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* Tabela de fornecedores */}

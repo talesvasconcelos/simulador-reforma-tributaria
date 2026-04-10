@@ -14,6 +14,7 @@ interface ResultadoImportacao {
   colunaValorDetectada: string | null
   cnpjsInvalidos?: string[]
   avisoFila?: string | null
+  avisoCpf?: string | null
 }
 
 const EXEMPLOS_COLUNAS = [
@@ -31,6 +32,7 @@ export default function ImportarFornecedoresPage() {
   const [enviando, setEnviando] = useState(false)
   const [resultado, setResultado] = useState<ResultadoImportacao | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const [periodoManual, setPeriodoManual] = useState<string>('auto')
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -47,6 +49,7 @@ export default function ImportarFornecedoresPage() {
     setErro(null)
     const formData = new FormData()
     formData.append('arquivo', arquivo)
+    if (periodoManual !== 'auto') formData.append('periodo', periodoManual)
 
     // Tenta até 2 vezes — primeira pode falhar por cold start do servidor
     for (let tentativa = 1; tentativa <= 2; tentativa++) {
@@ -260,12 +263,17 @@ export default function ImportarFornecedoresPage() {
             </div>
             {resultado.pessoasFisicas > 0 && (
               <div className="col-span-2 p-3 bg-purple-50 dark:bg-purple-900/15 border border-purple-200 dark:border-purple-800/60 rounded-xl">
-                <p className="text-muted-foreground/70 text-xs">Pessoas físicas (CPF)</p>
+                <p className="text-muted-foreground/70 text-xs">Pessoas físicas</p>
                 <p className="font-bold text-lg text-purple-600 num mt-0.5">{resultado.pessoasFisicas}</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">Inseridas sem enriquecimento — sem crédito de CBS/IBS na Reforma Tributária.</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Importadas sem crédito de CBS/IBS — nenhum número de CPF armazenado.</p>
               </div>
             )}
           </div>
+          {resultado.avisoCpf && (
+            <div className="p-3 bg-purple-50 dark:bg-purple-900/15 border border-purple-200 dark:border-purple-800/60 rounded-xl text-xs text-purple-800 dark:text-purple-300">
+              {resultado.avisoCpf}
+            </div>
+          )}
           {resultado.avisoFila && (
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/15 border border-yellow-200 dark:border-yellow-800/60 rounded-xl text-xs text-yellow-800 dark:text-yellow-300">
               ⚠️ {resultado.avisoFila}
@@ -292,7 +300,7 @@ export default function ImportarFornecedoresPage() {
                 </div>
               )}
               <p className="text-[11px] text-red-600/70 dark:text-red-400/60">
-                CPFs (11 dígitos) não são aceitos. CNPJs inválidos podem ter dígito verificador errado ou estar formatados incorretamente na planilha.
+                CNPJs inválidos podem ter dígito verificador errado ou estar formatados incorretamente na planilha. Células com "cpf" ou vazias são tratadas como pessoa física, não como erro.
               </p>
             </div>
           )}
@@ -306,13 +314,34 @@ export default function ImportarFornecedoresPage() {
         </div>
       ) : (
         arquivo && (
-          <button
-            onClick={handleImportar}
-            disabled={enviando}
-            className="w-full bg-gradient-to-br from-blue-600 to-blue-700 text-white py-3 rounded-xl text-sm font-semibold hover:from-blue-500 hover:to-blue-700 transition-all shadow-sm shadow-blue-600/20 disabled:opacity-60"
-          >
-            {enviando ? 'Importando...' : `Importar ${arquivo.name}`}
-          </button>
+          <div className="space-y-3">
+            <div className="bg-card rounded-xl border border-border p-4 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Período dos valores na planilha
+              </p>
+              <p className="text-xs text-muted-foreground/70">
+                Se o nome da coluna não indicar o período, selecione manualmente para converter corretamente para mensal.
+              </p>
+              <select
+                value={periodoManual}
+                onChange={(e) => setPeriodoManual(e.target.value)}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="auto">Detectar automaticamente pelo nome da coluna</option>
+                <option value="mensal">Mensal (÷ 1)</option>
+                <option value="trimestral">Trimestral (÷ 3)</option>
+                <option value="semestral">Semestral (÷ 6)</option>
+                <option value="anual">Anual (÷ 12) — totais anuais na planilha</option>
+              </select>
+            </div>
+            <button
+              onClick={handleImportar}
+              disabled={enviando}
+              className="w-full bg-gradient-to-br from-blue-600 to-blue-700 text-white py-3 rounded-xl text-sm font-semibold hover:from-blue-500 hover:to-blue-700 transition-all shadow-sm shadow-blue-600/20 disabled:opacity-60"
+            >
+              {enviando ? 'Importando...' : `Importar ${arquivo.name}`}
+            </button>
+          </div>
         )
       )}
     </div>

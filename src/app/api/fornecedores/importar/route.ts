@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { adicionarNaFila } from '@/lib/filas/queue'
-import { normalizarCnpj, validarCnpj, validarCpf } from '@/lib/utils'
+import { normalizarCnpj, validarCnpj } from '@/lib/utils'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -126,6 +126,7 @@ async function _handlePost(req: NextRequest) {
 
   const formData = await req.formData()
   const arquivo = formData.get('arquivo') as File | null
+  const periodoManual = (formData.get('periodo') as string | null)?.toLowerCase() ?? 'auto'
 
   if (!arquivo) {
     return NextResponse.json({ error: 'Arquivo não enviado' }, { status: 400 })
@@ -175,6 +176,11 @@ async function _handlePost(req: NextRequest) {
   // Detectar colunas automaticamente
   const colunas = Object.keys(linhas[0] ?? {})
 
+  // Coluna nomeada apenas "cpf" (sem "cnpj") → planilha de pessoas físicas, nada a importar
+  const colunaApenasCpf = colunas.find(
+    (c) => /^cpf$/i.test(c.trim())
+  )
+
   const colunaCnpj = colunas.find(
     (c) => c.toLowerCase().includes('cnpj') || c.toLowerCase().includes('cpf_cnpj')
   )
@@ -197,16 +203,40 @@ async function _handlePost(req: NextRequest) {
   )
 
   if (!colunaCnpj) {
+    if (colunaApenasCpf) {
+      // Planilha só com CPF — retorna aviso sem erro, nada inserido
+      return NextResponse.json({
+        total: linhas.length,
+        inseridos: 0,
+        duplicatas: 0,
+        pessoasFisicas: linhas.length,
+        erros: 0,
+        cnpjsInvalidos: [],
+        periodoDetectado: 'não informado',
+        colunaValorDetectada: null,
+        avisoFila: null,
+        avisoCpf: `Planilha contém apenas a coluna "cpf" — pessoas físicas não são importadas (sem CNPJ, sem crédito de CBS/IBS). Nenhum dado foi armazenado.`,
+      })
+    }
     return NextResponse.json(
       { error: 'Coluna CNPJ não encontrada. Inclua uma coluna com "cnpj" no cabeçalho.' },
       { status: 400 }
     )
   }
 
-  // Detectar período do valor (mensal/trimestral/semestral/anual)
-  const { divisor: divisorPeriodo, periodo: periodoDetectado } = colunaValor
-    ? detectarPeriodoColuna(colunaValor)
-    : { divisor: 1, periodo: 'não informado' }
+  // Período: usa seleção manual do usuário ou detecta automaticamente pelo nome da coluna
+  const DIVISORES_MANUAIS: Record<string, { divisor: number; periodo: string }> = {
+    mensal:      { divisor: 1,  periodo: 'mensal (selecionado)' },
+    trimestral:  { divisor: 3,  periodo: 'trimestral (selecionado)' },
+    semestral:   { divisor: 6,  periodo: 'semestral (selecionado)' },
+    anual:       { divisor: 12, periodo: 'anual (selecionado)' },
+  }
+  const { divisor: divisorPeriodo, periodo: periodoDetectado } =
+    periodoManual !== 'auto' && DIVISORES_MANUAIS[periodoManual]
+      ? DIVISORES_MANUAIS[periodoManual]
+      : colunaValor
+        ? detectarPeriodoColuna(colunaValor)
+        : { divisor: 1, periodo: 'não informado' }
 
   // --- Fase 1: validar todas as linhas e separar por tipo ---
   const cnpjsInvalidos: string[] = []
@@ -215,8 +245,7 @@ async function _handlePost(req: NextRequest) {
     nomeErp: string | undefined
     valorMedioComprasMensal: string | undefined
   }> = []
-  const cpfsValidos: Array<{
-    cpf: string
+  const pessoasFisicas: Array<{
     nomeErp: string | undefined
     valorMedioComprasMensal: string | undefined
   }> = []
@@ -243,13 +272,10 @@ async function _handlePost(req: NextRequest) {
     }
     const valorMensalStr = valorMensal !== undefined ? String(valorMensal) : undefined
 
-    // CPF detectado (11 dígitos) — pessoa física, sem enriquecimento automático
-    if (digits.length === 11) {
-      if (validarCpf(digits)) {
-        cpfsValidos.push({ cpf: digits, nomeErp, valorMedioComprasMensal: valorMensalStr })
-      } else {
-        cnpjsInvalidos.push(cnpjRaw || '(vazio)')
-      }
+    // Célula com texto "cpf" ou vazia → pessoa física, sobe sem crédito, SEM número de CPF
+    const isPessoaFisica = /^cpf$/i.test(cnpjRaw) || cnpjRaw === '' || digits === ''
+    if (isPessoaFisica) {
+      pessoasFisicas.push({ nomeErp, valorMedioComprasMensal: valorMensalStr })
       continue
     }
 
@@ -262,8 +288,6 @@ async function _handlePost(req: NextRequest) {
 
     linhasValidas.push({ cnpj, nomeErp, valorMedioComprasMensal: valorMensalStr })
   }
-
-  const erros = cnpjsInvalidos.length
 
   // --- Fase 2: batch insert em lotes de 500 ---
   const LOTE = 500
@@ -343,28 +367,29 @@ async function _handlePost(req: NextRequest) {
     }
   }
 
-  // --- Fase 2b: inserir CPFs como pessoa física (sem enriquecimento) ---
+  // --- Fase 2b: inserir pessoas físicas — ID gerado, sem número de CPF, sem crédito ---
   let pessoasFisicasInseridas = 0
-  for (const cpfData of cpfsValidos) {
+  for (const pf of pessoasFisicas) {
     try {
+      // Gera um identificador único que não é CPF — apenas para satisfazer a coluna obrigatória
+      const pfId = `PF_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
       const [novo] = await db
         .insert(fornecedores)
         .values({
           empresaId: empresa.id,
-          cnpj: cpfData.cpf,
-          nomeErp: cpfData.nomeErp,
-          valorMedioComprasMensal: cpfData.valorMedioComprasMensal,
-          razaoSocial: cpfData.nomeErp ?? null,
+          cnpj: pfId,
+          nomeErp: pf.nomeErp,
+          valorMedioComprasMensal: pf.valorMedioComprasMensal,
+          razaoSocial: pf.nomeErp ?? null,
           statusEnriquecimento: 'nao_encontrado' as const,
           geraCredito: false,
-          erroEnriquecimento: 'Pessoa física (CPF) — sem crédito de CBS/IBS na Reforma Tributária (LC 214/2025)',
+          erroEnriquecimento: 'Pessoa física — sem crédito de CBS/IBS (LC 214/2025)',
           ultimoEnriquecimentoEm: new Date(),
         })
-        .onConflictDoNothing({ target: [fornecedores.cnpj, fornecedores.empresaId] })
         .returning({ id: fornecedores.id })
       if (novo) pessoasFisicasInseridas++
     } catch (e) {
-      console.error('[importar] erro ao inserir CPF pessoa física:', cpfData.cpf, String(e))
+      console.error('[importar] erro ao inserir pessoa física:', String(e))
     }
   }
 
@@ -390,5 +415,6 @@ async function _handlePost(req: NextRequest) {
     periodoDetectado,
     colunaValorDetectada: colunaValor ?? null,
     avisoFila: filaErro ? 'Fornecedores salvos, mas fila de enriquecimento falhou. Clique "Enriquecer tudo" na tela de Fornecedores.' : null,
+    avisoCpf: pessoasFisicasInseridas > 0 ? `${pessoasFisicasInseridas} pessoa(s) física(s) importada(s) sem crédito de CBS/IBS — nenhum número de CPF armazenado.` : null,
   })
 }
