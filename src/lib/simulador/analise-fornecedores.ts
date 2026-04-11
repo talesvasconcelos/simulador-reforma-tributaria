@@ -94,8 +94,9 @@ export function calcularCustoEfetivo(params: ParamsAnalise): AnaliseEstrategica 
       const percentualIbs = cronograma.percentualIbsVigente / 100
       creditoPotencialMensal = precoMedioMensal * (cbsEfetiva + ibsEfetiva * percentualIbs)
     } else if (ehSimples) {
-      // Simples sem por fora: crédito presumido 1.5% seria o mínimo potencial
-      creditoPotencialMensal = precoMedioMensal * 0.015
+      // MEI: crédito presumido 0.5% | Simples Nacional: 1.5% (crédito presumido CBS)
+      const taxaPresumida = regime === 'mei' ? 0.005 : 0.015
+      creditoPotencialMensal = precoMedioMensal * taxaPresumida
     }
   }
 
@@ -109,8 +110,8 @@ export function calcularCustoEfetivo(params: ParamsAnalise): AnaliseEstrategica 
       percentualCredito = cbsEfetiva + ibsEfetiva * percentualIbs
       creditoMensal = precoMedioMensal * percentualCredito
     } else if (ehSimples) {
-      // Simples sem opção por fora: crédito presumido ~1.5%
-      percentualCredito = 0.015
+      // MEI: crédito presumido 0.5% | Simples Nacional: 1.5% (alinha com percentualCreditoEstimado do DB)
+      percentualCredito = regime === 'mei' ? 0.005 : 0.015
       creditoMensal = precoMedioMensal * percentualCredito
     }
     // Isento: sem crédito transferível

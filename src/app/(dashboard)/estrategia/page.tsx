@@ -49,6 +49,7 @@ export default function EstrategiaPage() {
     creditoPerdidoAnual: number
   }>>([])
   const [carregando, setCarregando] = useState(true)
+  const [busca, setBusca] = useState('')
 
   useEffect(() => {
     setCarregando(true)
@@ -67,6 +68,17 @@ export default function EstrategiaPage() {
     ano: parseInt(ano),
     'Crédito Estimado': Math.round(valor),
   }))
+
+  const buscaNorm = busca.trim().toLowerCase().replace(/\D/g, '') || busca.trim().toLowerCase()
+  const analisesFiltradas = busca.trim()
+    ? analises.filter((a) => {
+        const cnpjLimpo = a.cnpj.replace(/\D/g, '')
+        return (
+          a.nome.toLowerCase().includes(busca.trim().toLowerCase()) ||
+          cnpjLimpo.includes(buscaNorm)
+        )
+      })
+    : analises
 
   return (
     <div className="space-y-6">
@@ -265,9 +277,18 @@ export default function EstrategiaPage() {
 
       {/* Tabela de fornecedores */}
       <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-border/60 bg-muted/50">
-          <h2 className="font-semibold text-foreground/80 text-sm">Ranking por Custo Efetivo — {anoSelecionado}</h2>
-          <p className="text-xs text-muted-foreground/70 mt-0.5">Ordenado do mais vantajoso ao mais oneroso</p>
+        <div className="px-5 py-4 border-b border-border/60 bg-muted/50 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <h2 className="font-semibold text-foreground/80 text-sm">Ranking por Custo Efetivo — {anoSelecionado}</h2>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">Ordenado do mais vantajoso ao mais oneroso</p>
+          </div>
+          <input
+            type="text"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome ou CNPJ…"
+            className="w-full sm:w-64 text-sm px-3 py-1.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+          />
         </div>
         {carregando ? (
           <div className="p-10 text-center text-muted-foreground text-sm">Carregando análise...</div>
@@ -289,7 +310,13 @@ export default function EstrategiaPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {analises.map((a) => (
+              {analisesFiltradas.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-muted-foreground text-sm">
+                    Nenhum fornecedor encontrado para &ldquo;{busca}&rdquo;.
+                  </td>
+                </tr>
+              ) : analisesFiltradas.map((a) => (
                 <tr key={a.fornecedorId} className="hover:bg-accent/40 transition-colors">
                   <td className="px-4 py-3">
                     <p className="font-medium text-foreground truncate max-w-xs">{a.nome}</p>
