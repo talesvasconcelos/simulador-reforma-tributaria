@@ -7,11 +7,13 @@ import { enriquecerCnpjPorRegras } from '@/lib/ai/enriquecimento-regras'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-/** CNPJs processados por empresa por execução do cron (a cada 1 min) */
-const POR_RODADA = 15
+/** CNPJs processados por empresa por execução do cron (a cada 1 min).
+ *  BrasilAPI tolera ~3-5 req/s mas pode rate-limitar em rajadas. 8 por minuto
+ *  com 3s de delay = 24s de execução, bem abaixo do limite de 60s da Vercel. */
+const POR_RODADA = 8
 
 /** Intervalo entre chamadas às APIs externas (ms) — respeita rate limit BrasilAPI */
-const DELAY_MS = 1500
+const DELAY_MS = 3000
 
 export async function GET(req: NextRequest) {
   // Vercel Cron Jobs enviam o header Authorization com o CRON_SECRET configurado no projeto

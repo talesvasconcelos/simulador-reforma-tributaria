@@ -252,11 +252,13 @@ async function _handlePost(req: NextRequest) {
     cnpj: string
     nomeErp: string | undefined
     valorMedioComprasMensal: string | undefined
+    valorRaw: string  // diagnóstico: valor bruto da célula
   }> = []
   const pessoasFisicas: Array<{
     nomeErp: string | undefined
     valorMedioComprasMensal: string | undefined
   }> = []
+  let semValorCnpj = 0 // CNPJs válidos sem valor ou com valor zero/inválido
 
   for (const linha of linhas) {
     const cnpjRaw = String(linha[colunaCnpj] ?? '').trim()
@@ -271,9 +273,10 @@ async function _handlePost(req: NextRequest) {
       .replace(/\uFFFD/g, '')                                // replacement character
       .slice(0, 500) || undefined
 
+    const valorRaw = colunaValor ? String(linha[colunaValor] ?? '').trim() : ''
     let valorMensal: number | undefined
     if (colunaValor) {
-      const valorBruto = parsearValor(String(linha[colunaValor] ?? ''))
+      const valorBruto = parsearValor(valorRaw)
       if (valorBruto > 0 && isFinite(valorBruto)) {
         valorMensal = valorBruto / divisorPeriodo
       }
@@ -294,7 +297,8 @@ async function _handlePost(req: NextRequest) {
       continue
     }
 
-    linhasValidas.push({ cnpj, nomeErp, valorMedioComprasMensal: valorMensalStr })
+    if (!valorMensalStr && colunaValor) semValorCnpj++
+    linhasValidas.push({ cnpj, nomeErp, valorMedioComprasMensal: valorMensalStr, valorRaw })
   }
 
   // --- Fase 2: batch insert em lotes de 500 ---
@@ -419,10 +423,12 @@ async function _handlePost(req: NextRequest) {
     duplicatas,
     pessoasFisicas: pessoasFisicasInseridas,
     erros: cnpjsInvalidos.length,
+    semValor: semValorCnpj,
     cnpjsInvalidos: cnpjsInvalidos.slice(0, 50),
     periodoDetectado,
     colunaValorDetectada: colunaValor ?? null,
     avisoFila: filaErro ? 'Fornecedores salvos, mas fila de enriquecimento falhou. Clique "Enriquecer tudo" na tela de Fornecedores.' : null,
     avisoCpf: pessoasFisicasInseridas > 0 ? `${pessoasFisicasInseridas} pessoa(s) física(s) importada(s) sem crédito de CBS/IBS — nenhum número de CPF armazenado.` : null,
+    avisoSemValor: semValorCnpj > 0 ? `${semValorCnpj} fornecedor(es) importado(s) sem valor — célula vazia, zero ou com texto não reconhecido (ex: "-", "N/A"). O campo preço pode ser preenchido manualmente depois.` : null,
   })
 }

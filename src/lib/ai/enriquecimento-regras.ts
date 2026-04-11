@@ -9,6 +9,14 @@ import { eq } from 'drizzle-orm'
 import { classificarSetorPorCnae, inferirRegime } from '@/lib/cnpj/classificador'
 import { ALIQUOTAS_SETORIAIS } from '@/lib/simulador/aliquotas'
 
+/** Sinaliza rate limit das APIs externas — não deve ser salvo como nao_encontrado */
+class RateLimitError extends Error {
+  constructor(fonte: string) {
+    super(`rate_limit:${fonte}`)
+    this.name = 'RateLimitError'
+  }
+}
+
 interface DadosCnpjBruto {
   razaoSocial: string
   nomeFantasia: string | null
@@ -25,17 +33,18 @@ interface DadosCnpjBruto {
 }
 
 async function buscarDadosCnpj(cnpj: string): Promise<DadosCnpjBruto | null> {
-  // Tenta BrasilAPI (2 tentativas; na 2ª aguarda 5s antes de tentar)
+  // Tenta BrasilAPI (2 tentativas; na 2ª aguarda 3s antes de tentar)
   for (let i = 0; i < 2; i++) {
     try {
-      if (i > 0) await new Promise((r) => setTimeout(r, 5000))
+      if (i > 0) await new Promise((r) => setTimeout(r, 3000))
       const res = await fetch(`${process.env.BRASIL_API_URL ?? 'https://brasilapi.com.br/api/cnpj/v1'}/${cnpj}`, {
         signal: AbortSignal.timeout(10000),
         cache: 'no-store',
       })
-      // 429 = rate limit; 404 = CNPJ não existe na Receita Federal
+      // 404 = CNPJ não existe na Receita Federal
       if (res.status === 404) return null
-      if (res.status === 429) break // sai do loop e tenta ReceitaWS
+      // 429 = rate limit → lança erro especial para manter status como pendente
+      if (res.status === 429) throw new RateLimitError('brasilapi')
       if (res.ok) {
         const d = await res.json()
         return {
@@ -53,7 +62,10 @@ async function buscarDadosCnpj(cnpj: string): Promise<DadosCnpjBruto | null> {
           naturezaJuridica: d.descricao_natureza_juridica as string,
         }
       }
-    } catch { /* próxima tentativa */ }
+    } catch (err) {
+      if (err instanceof RateLimitError) throw err // propaga — não tenta ReceitaWS em rate limit
+      /* erro de rede → próxima tentativa */
+    }
   }
 
   // Fallback: ReceitaWS — uma tentativa, sem retry (evita estourar timeout da Vercel)
@@ -62,7 +74,8 @@ async function buscarDadosCnpj(cnpj: string): Promise<DadosCnpjBruto | null> {
       signal: AbortSignal.timeout(12000),
       cache: 'no-store',
     })
-    if (res.status === 429) return null // rate limit → classifica como nao_encontrado para retry posterior
+    // 429 = rate limit → lança erro especial para manter status como pendente
+    if (res.status === 429) throw new RateLimitError('receitaws')
     if (res.status === 404) return null
     if (!res.ok) return null
     const d = await res.json()
@@ -82,7 +95,8 @@ async function buscarDadosCnpj(cnpj: string): Promise<DadosCnpjBruto | null> {
       capitalSocial: 0,
       naturezaJuridica: d.natureza_juridica as string,
     }
-  } catch {
+  } catch (err) {
+    if (err instanceof RateLimitError) throw err
     return null
   }
 }
@@ -110,13 +124,13 @@ export async function enriquecerCnpjPorRegras(cnpj: string, fornecedorId: string
   try {
     const dados = await buscarDadosCnpj(cnpjLimpo)
 
-    // Ambas as APIs falharam — salva como nao_encontrado sem travar como erro
+    // Ambas as APIs falharam (CNPJ não existe na Receita Federal)
     if (!dados) {
       await db
         .update(fornecedores)
         .set({
           statusEnriquecimento: 'nao_encontrado',
-          erroEnriquecimento: 'CNPJ não localizado nas APIs (BrasilAPI e ReceitaWS indisponíveis ou rate limit). Tente novamente mais tarde ou preencha manualmente.',
+          erroEnriquecimento: 'CNPJ não localizado na Receita Federal (BrasilAPI + ReceitaWS). Verifique se o CNPJ está ativo ou preencha os dados manualmente.',
           ultimoEnriquecimentoEm: new Date(),
         })
         .where(eq(fornecedores.id, fornecedorId))
@@ -185,6 +199,17 @@ export async function enriquecerCnpjPorRegras(cnpj: string, fornecedorId: string
       })
       .where(eq(fornecedores.id, fornecedorId))
   } catch (error) {
+    // Rate limit das APIs externas → mantém como pendente para o cron retentar no próximo minuto
+    if (error instanceof RateLimitError) {
+      await db
+        .update(fornecedores)
+        .set({
+          statusEnriquecimento: 'pendente',
+          ultimoEnriquecimentoEm: new Date(),
+        })
+        .where(eq(fornecedores.id, fornecedorId))
+      return
+    }
     await db
       .update(fornecedores)
       .set({

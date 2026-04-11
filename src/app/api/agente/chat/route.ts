@@ -64,14 +64,15 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Buscar histórico de chat
-  const historicoDb = sessionId
-    ? await db.query.chatHistorico.findMany({
-        where: eq(chatHistorico.sessionId, sessionId as `${string}-${string}-${string}-${string}-${string}`),
-        orderBy: [desc(chatHistorico.criadoEm)],
-        limit: 10,
-      })
-    : []
+  // Buscar histórico de chat — últimas 30 mensagens da empresa (todas as sessões),
+  // para que o agente aprenda com conversas anteriores e melhore as respostas.
+  // Dentro da sessão atual as mensagens já foram salvas antes de cada resposta,
+  // então o contexto inclui o histórico recente desta sessão também.
+  const historicoDb = await db.query.chatHistorico.findMany({
+    where: eq(chatHistorico.empresaId, empresa.id),
+    orderBy: [desc(chatHistorico.criadoEm)],
+    limit: 30,
+  })
 
   const historico = historicoDb
     .reverse()

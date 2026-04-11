@@ -41,7 +41,7 @@ export default function CompararFornecedoresPage() {
     const fetchJson = (url: string) =>
       fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null)
 
-    Promise.all([fetchJson('/api/fornecedores'), fetchJson('/api/empresa')]).then(([f, e]) => {
+    Promise.all([fetchJson('/api/fornecedores?porPagina=5000'), fetchJson('/api/empresa')]).then(([f, e]) => {
       setFornecedores(((f?.fornecedores ?? []) as Fornecedor[]).filter((x) => x.statusEnriquecimento === 'concluido'))
       if (e?.regime) setEmpresa(e)
       setCarregando(false)

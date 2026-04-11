@@ -456,7 +456,8 @@ export default function FornecedoresPage() {
   }
 
   // Usa contagem do servidor (SSE) — sempre reflete o total real, não só os da tela
-  const pendentesOuErro = (progresso.pendente ?? 0) + (progresso.erro ?? 0)
+  // Inclui nao_encontrado pois pode ter sido causado por rate limit da API (não CNPJ inexistente)
+  const pendentesOuErro = (progresso.pendente ?? 0) + (progresso.erro ?? 0) + (progresso.naoEncontrado ?? 0)
 
   const inputCls = 'border border-border rounded-lg px-3 py-2 text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow'
 
@@ -472,6 +473,7 @@ export default function FornecedoresPage() {
             <button
               onClick={enriquecerTodos}
               className="px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
+              title="Reprocessa pendentes, com erro e não encontrados (pode ter sido rate limit da API)"
             >
               Enriquecer todos ({pendentesOuErro})
             </button>

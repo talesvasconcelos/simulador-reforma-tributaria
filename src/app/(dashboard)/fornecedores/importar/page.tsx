@@ -10,11 +10,13 @@ interface ResultadoImportacao {
   duplicatas: number
   pessoasFisicas: number
   erros: number
+  semValor: number
   periodoDetectado: string
   colunaValorDetectada: string | null
   cnpjsInvalidos?: string[]
   avisoFila?: string | null
   avisoCpf?: string | null
+  avisoSemValor?: string | null
 }
 
 const EXEMPLOS_COLUNAS = [
@@ -268,10 +270,22 @@ export default function ImportarFornecedoresPage() {
                 <p className="text-xs text-muted-foreground/60 mt-1">Importadas sem crédito de CBS/IBS — nenhum número de CPF armazenado.</p>
               </div>
             )}
+            {resultado.semValor > 0 && (
+              <div className="col-span-2 p-3 bg-orange-50 dark:bg-orange-900/15 border border-orange-200 dark:border-orange-800/60 rounded-xl">
+                <p className="text-muted-foreground/70 text-xs">Sem valor de compra</p>
+                <p className="font-bold text-lg text-orange-600 num mt-0.5">{resultado.semValor}</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Célula vazia, zero ou texto não reconhecido (ex: "-", "N/A"). Edite o preço individualmente na tela de Fornecedores.</p>
+              </div>
+            )}
           </div>
           {resultado.avisoCpf && (
             <div className="p-3 bg-purple-50 dark:bg-purple-900/15 border border-purple-200 dark:border-purple-800/60 rounded-xl text-xs text-purple-800 dark:text-purple-300">
               {resultado.avisoCpf}
+            </div>
+          )}
+          {resultado.avisoSemValor && (
+            <div className="p-3 bg-orange-50 dark:bg-orange-900/15 border border-orange-200 dark:border-orange-800/60 rounded-xl text-xs text-orange-800 dark:text-orange-300">
+              ⚠️ {resultado.avisoSemValor}
             </div>
           )}
           {resultado.avisoFila && (

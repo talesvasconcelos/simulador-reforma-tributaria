@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
       eq(fornecedores.ativo, true),
       ids?.length
         ? inArray(fornecedores.id, ids)
-        : inArray(fornecedores.statusEnriquecimento, ['pendente', 'erro']),
+        // Inclui nao_encontrado — pode ter sido causado por rate limit da API externa
+        : inArray(fornecedores.statusEnriquecimento, ['pendente', 'erro', 'nao_encontrado']),
     ),
     columns: { id: true },
   })
