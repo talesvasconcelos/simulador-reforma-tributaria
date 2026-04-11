@@ -127,6 +127,8 @@ async function _handlePost(req: NextRequest) {
   const formData = await req.formData()
   const arquivo = formData.get('arquivo') as File | null
   const periodoManual = (formData.get('periodo') as string | null)?.toLowerCase() ?? 'auto'
+  // Coluna de valor manual: se informada, substitui a auto-detecção
+  const colunaValorManual = (formData.get('colunaValor') as string | null)?.trim() || null
 
   if (!arquivo) {
     return NextResponse.json({ error: 'Arquivo não enviado' }, { status: 400 })
@@ -192,17 +194,20 @@ async function _handlePost(req: NextRequest) {
   const colunaCnpj = colunas.find(
     (c) => c.toLowerCase().includes('cnpj') || c.toLowerCase().includes('cpf_cnpj')
   )
-  // Detecta a coluna de valor E já extrai o período pelo nome dela
-  const colunaValor = colunas.find(
-    (c) =>
-      c.toLowerCase().includes('valor') ||
-      c.toLowerCase().includes('compra') ||
-      c.toLowerCase().includes('total') ||
-      c.toLowerCase().includes('mensal') ||
-      c.toLowerCase().includes('trimestral') ||
-      c.toLowerCase().includes('semestral') ||
-      c.toLowerCase().includes('anual')
-  )
+
+  // Coluna de valor: usa a informada manualmente (se existir no arquivo) ou auto-detecta
+  const colunaValor =
+    (colunaValorManual && colunas.includes(colunaValorManual) ? colunaValorManual : null) ??
+    colunas.find(
+      (c) =>
+        c.toLowerCase().includes('valor') ||
+        c.toLowerCase().includes('compra') ||
+        c.toLowerCase().includes('total') ||
+        c.toLowerCase().includes('mensal') ||
+        c.toLowerCase().includes('trimestral') ||
+        c.toLowerCase().includes('semestral') ||
+        c.toLowerCase().includes('anual')
+    )
   const colunaNome = colunas.find(
     (c) =>
       c.toLowerCase().includes('nome') ||
@@ -441,6 +446,18 @@ async function _handlePost(req: NextRequest) {
     }
   }
 
+  // Amostra dos primeiros 5 valores brutos lidos da coluna detectada (diagnóstico)
+  const amostraValores = colunaValor
+    ? linhas.slice(0, 5).map((l) => ({
+        raw: String(l[colunaValor] ?? ''),
+        parsed: parsearValor(String(l[colunaValor] ?? '')),
+        mensal: (() => {
+          const v = parsearValor(String(l[colunaValor] ?? ''))
+          return v > 0 ? v / divisorPeriodo : null
+        })(),
+      }))
+    : []
+
   return NextResponse.json({
     total: linhas.length,
     inseridos,
@@ -452,6 +469,8 @@ async function _handlePost(req: NextRequest) {
     cnpjsInvalidos: cnpjsInvalidos.slice(0, 50),
     periodoDetectado,
     colunaValorDetectada: colunaValor ?? null,
+    todasColunas: colunas, // lista completa para o usuário selecionar a correta
+    amostraValores,        // primeiros 5 valores: bruto, parsed e mensal após divisor
     avisoFila: filaErro ? 'Fornecedores salvos, mas fila de enriquecimento falhou. Clique "Enriquecer tudo" na tela de Fornecedores.' : null,
     avisoCpf: pessoasFisicasInseridas > 0 ? `${pessoasFisicasInseridas} pessoa(s) física(s) importada(s) sem crédito de CBS/IBS — nenhum número de CPF armazenado.` : null,
     avisoSemValor: semValorCnpj > 0 ? `${semValorCnpj} fornecedor(es) importado(s) sem valor — célula vazia, zero ou com texto não reconhecido (ex: "-", "N/A"). O campo preço pode ser preenchido manualmente depois.` : null,
