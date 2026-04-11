@@ -81,12 +81,13 @@ export default function AgentePage() {
           if (dados.sessionId) setSessionId(dados.sessionId)
         }
       }
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao processar sua pergunta. Tente novamente.'
       setMensagens((prev) => {
         const novas = [...prev]
         novas[novas.length - 1] = {
           ...novas[novas.length - 1],
-          conteudo: 'Erro ao processar sua pergunta. Tente novamente.',
+          conteudo: msg,
         }
         return novas
       })

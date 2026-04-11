@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic'
 
 const schemaChat = z.object({
   pergunta: z.string().min(3).max(2000),
-  sessionId: z.string().uuid().optional(),
+  // .nullish() aceita string | null | undefined — frontend envia null na primeira mensagem
+  sessionId: z.string().uuid().nullish(),
 })
 
 export async function POST(req: NextRequest) {
