@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
       opcaoCbsIbsPorFora: true,
       statusEnriquecimento: true,
       ativo: true,
+      categoriaCompra: true,
     },
   })
 
@@ -67,8 +68,8 @@ export async function GET(req: NextRequest) {
 
   // Calcular custo efetivo para cada fornecedor
   const analises = listaComPreco
-    .map((f) =>
-      calcularCustoEfetivo({
+    .map((f) => ({
+      ...calcularCustoEfetivo({
         fornecedorId: f.id,
         cnpj: f.cnpj,
         nome: f.razaoSocial ?? f.nomeErp ?? f.cnpj,
@@ -79,8 +80,9 @@ export async function GET(req: NextRequest) {
         regimeComprador: empresa.regime,
         ano,
         opcaoCbsIbsPorFora: f.opcaoCbsIbsPorFora ?? false,
-      })
-    )
+      }),
+      categoriaCompra: f.categoriaCompra ?? null,
+    }))
     .sort((a, b) => a.custoEfetivo - b.custoEfetivo) // Ranking por custo efetivo
 
   // Projeção da economia anual (2026–2033)
@@ -154,6 +156,37 @@ export async function GET(req: NextRequest) {
     }))
     .sort((a, b) => a.percentualCreditoMedio - b.percentualCreditoMedio) // menor crédito primeiro
 
+  // Breakdown por plano de contas / categoria de gasto
+  const porCategoria = analises.reduce<Record<string, {
+    categoria: string
+    qtdFornecedores: number
+    totalComprasMensal: number
+    totalCreditoMensal: number
+    creditoPerdidoMensal: number
+  }>>((acc, a) => {
+    const key = a.categoriaCompra ?? '(sem categoria)'
+    if (!acc[key]) {
+      acc[key] = { categoria: key, qtdFornecedores: 0, totalComprasMensal: 0, totalCreditoMensal: 0, creditoPerdidoMensal: 0 }
+    }
+    acc[key].qtdFornecedores++
+    acc[key].totalComprasMensal += a.precoMedioMensal
+    acc[key].totalCreditoMensal += a.creditoMensal
+    if (!podeApropriarCredito) acc[key].creditoPerdidoMensal += a.creditoPotencialMensal
+    return acc
+  }, {})
+
+  const analisesPorCategoria = Object.values(porCategoria)
+    .map((c) => ({
+      ...c,
+      totalComprasAnual: c.totalComprasMensal * 12,
+      totalCreditoAnual: c.totalCreditoMensal * 12,
+      creditoPerdidoAnual: c.creditoPerdidoMensal * 12,
+      percentualCreditoMedio: c.totalComprasMensal > 0
+        ? (c.totalCreditoMensal / c.totalComprasMensal) * 100
+        : 0,
+    }))
+    .sort((a, b) => b.totalComprasMensal - a.totalComprasMensal) // maior volume primeiro
+
   return NextResponse.json({
     analises,
     resumo: {
@@ -171,6 +204,7 @@ export async function GET(req: NextRequest) {
     },
     economiaAnual,
     analisesPorSetor,
+    analisesPorCategoria,
     ano,
   })
 }

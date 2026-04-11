@@ -25,6 +25,7 @@ interface ResultadoImportacao {
   avisoCpf?: string | null
   avisoSemValor?: string | null
   avisoPrecos?: string | null
+  colunaCategoriaDetectada?: string | null
 }
 
 export default function ImportarFornecedoresPage() {
@@ -39,6 +40,7 @@ export default function ImportarFornecedoresPage() {
   // Configurações do import
   const [periodoManual, setPeriodoManual] = useState<string>('auto')
   const [colunaValorSelecionada, setColunaValorSelecionada] = useState<string>('')
+  const [colunaCategoriaSelecionada, setColunaCategoriaSelecionada] = useState<string>('')
 
   // Resultado
   const [enviando, setEnviando] = useState(false)
@@ -49,6 +51,7 @@ export default function ImportarFornecedoresPage() {
     setArquivo(null)
     setPreview(null)
     setColunaValorSelecionada('')
+    setColunaCategoriaSelecionada('')
     setPeriodoManual('auto')
     setResultado(null)
     setErro(null)
@@ -70,6 +73,7 @@ export default function ImportarFornecedoresPage() {
     setArquivo(file)
     setPreview(null)
     setColunaValorSelecionada('')
+    setColunaCategoriaSelecionada('')
     setErro(null)
   }
 
@@ -99,6 +103,7 @@ export default function ImportarFornecedoresPage() {
     formData.append('arquivo', arquivo)
     if (periodoManual !== 'auto') formData.append('periodo', periodoManual)
     if (colunaValorSelecionada) formData.append('colunaValor', colunaValorSelecionada)
+    if (colunaCategoriaSelecionada) formData.append('colunaCategoria', colunaCategoriaSelecionada)
 
     for (let tentativa = 1; tentativa <= 2; tentativa++) {
       try {
@@ -198,70 +203,125 @@ export default function ImportarFornecedoresPage() {
             </button>
           )}
 
-          {/* PASSO 2: Seleção de coluna de valor */}
+          {/* PASSO 2: Seleção de colunas */}
           {preview && (
-            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Colunas encontradas no arquivo
-                </p>
-                <p className="text-xs text-muted-foreground/70 mt-0.5">
-                  Selecione qual coluna contém os valores de compra. Os 5 primeiros valores são mostrados para confirmar.
-                </p>
-              </div>
-
-              <div className="divide-y divide-border/60 rounded-lg border border-border overflow-hidden">
-                {preview.map((p) => {
-                  const selecionada = colunaValorSelecionada === p.coluna
-                  return (
-                    <button
-                      key={p.coluna}
-                      onClick={() => setColunaValorSelecionada(selecionada ? '' : p.coluna)}
-                      className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors ${
-                        selecionada ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-accent/50'
-                      }`}
-                    >
-                      <div className={`mt-0.5 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
-                        selecionada ? 'bg-blue-600 border-blue-600' : 'border-border'
-                      }`}>
-                        {selecionada && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold ${selecionada ? 'text-blue-700 dark:text-blue-400' : 'text-foreground'}`}>
-                          {p.coluna}
-                        </p>
-                        <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">
-                          {p.valores.filter(Boolean).slice(0, 4).join(' · ') || '(vazio)'}
-                        </p>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {colunaValorSelecionada && amostraPreview.length > 0 && (
-                <div className="p-3 bg-muted/50 rounded-lg">
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">
-                    Primeiros valores em <code className="font-mono text-foreground/80">{colunaValorSelecionada}</code>:
+            <div className="space-y-3">
+              {/* Coluna de valor */}
+              <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Coluna de valor de compra
                   </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {amostraPreview.filter(Boolean).slice(0, 5).map((v, i) => (
-                      <code key={i} className="text-xs font-mono bg-background border border-border px-2 py-0.5 rounded text-foreground/80">
-                        {v}
-                      </code>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground/60 mt-1.5">
-                    Confirme que estes são os valores de compra corretos antes de importar.
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">
+                    Selecione qual coluna contém os valores de compra. Os 5 primeiros valores são mostrados para confirmar.
                   </p>
                 </div>
-              )}
 
-              {!colunaValorSelecionada && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Nenhuma coluna selecionada — o sistema tentará detectar automaticamente pelo nome da coluna.
-                </p>
-              )}
+                <div className="divide-y divide-border/60 rounded-lg border border-border overflow-hidden">
+                  {preview.map((p) => {
+                    const selecionada = colunaValorSelecionada === p.coluna
+                    return (
+                      <button
+                        key={p.coluna}
+                        onClick={() => setColunaValorSelecionada(selecionada ? '' : p.coluna)}
+                        className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors ${
+                          selecionada ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-accent/50'
+                        }`}
+                      >
+                        <div className={`mt-0.5 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                          selecionada ? 'bg-blue-600 border-blue-600' : 'border-border'
+                        }`}>
+                          {selecionada && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-semibold ${selecionada ? 'text-blue-700 dark:text-blue-400' : 'text-foreground'}`}>
+                            {p.coluna}
+                          </p>
+                          <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">
+                            {p.valores.filter(Boolean).slice(0, 4).join(' · ') || '(vazio)'}
+                          </p>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {colunaValorSelecionada && amostraPreview.length > 0 && (
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-xs font-semibold text-muted-foreground mb-1.5">
+                      Primeiros valores em <code className="font-mono text-foreground/80">{colunaValorSelecionada}</code>:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {amostraPreview.filter(Boolean).slice(0, 5).map((v, i) => (
+                        <code key={i} className="text-xs font-mono bg-background border border-border px-2 py-0.5 rounded text-foreground/80">
+                          {v}
+                        </code>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground/60 mt-1.5">
+                      Confirme que estes são os valores de compra corretos antes de importar.
+                    </p>
+                  </div>
+                )}
+
+                {!colunaValorSelecionada && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Nenhuma coluna selecionada — o sistema tentará detectar automaticamente pelo nome da coluna.
+                  </p>
+                )}
+              </div>
+
+              {/* Coluna de plano de contas (opcional) */}
+              <div className="bg-card rounded-xl border border-violet-200 dark:border-violet-800/60 p-4 space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-violet-700 dark:text-violet-400 uppercase tracking-wider">
+                    Coluna de plano de contas <span className="normal-case font-normal text-muted-foreground">(opcional)</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">
+                    Se sua planilha tem uma coluna de categoria de gasto (ex: Alimentação, Locação, TI), selecione-a.
+                    Isso permite ver o impacto da reforma por tipo de despesa na tela Estratégia.
+                  </p>
+                </div>
+
+                <div className="divide-y divide-border/60 rounded-lg border border-violet-200 dark:border-violet-800/40 overflow-hidden">
+                  {preview.map((p) => {
+                    const selecionada = colunaCategoriaSelecionada === p.coluna
+                    return (
+                      <button
+                        key={p.coluna}
+                        onClick={() => setColunaCategoriaSelecionada(selecionada ? '' : p.coluna)}
+                        className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors ${
+                          selecionada ? 'bg-violet-50 dark:bg-violet-900/20' : 'hover:bg-accent/50'
+                        }`}
+                      >
+                        <div className={`mt-0.5 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                          selecionada ? 'bg-violet-600 border-violet-600' : 'border-border'
+                        }`}>
+                          {selecionada && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-semibold ${selecionada ? 'text-violet-700 dark:text-violet-400' : 'text-foreground'}`}>
+                            {p.coluna}
+                          </p>
+                          <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">
+                            {p.valores.filter(Boolean).slice(0, 4).join(' · ') || '(vazio)'}
+                          </p>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {colunaCategoriaSelecionada ? (
+                  <p className="text-xs text-violet-600 dark:text-violet-400">
+                    Plano de contas: coluna <strong>{colunaCategoriaSelecionada}</strong> será importada.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground/50">
+                    Nenhuma coluna selecionada — o sistema tentará detectar automaticamente (plano, categoria, fluxo).
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -336,6 +396,14 @@ export default function ImportarFornecedoresPage() {
           ) : (
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/15 border border-yellow-200 dark:border-yellow-800/60 rounded-xl text-xs text-yellow-800 dark:text-yellow-300">
               Nenhuma coluna de valor encontrada. Edite o preço individualmente na tela de Fornecedores.
+            </div>
+          )}
+
+          {resultado.colunaCategoriaDetectada && (
+            <div className="p-3 bg-violet-50 dark:bg-violet-900/15 border border-violet-200 dark:border-violet-800/60 rounded-xl text-xs text-violet-800 dark:text-violet-300">
+              <span className="font-semibold">Plano de contas:</span>{' '}
+              coluna <code className="font-mono bg-violet-100 dark:bg-violet-900/40 px-1 rounded">{resultado.colunaCategoriaDetectada}</code>{' '}
+              importada. Veja o impacto por categoria na tela <strong>Estratégia</strong>.
             </div>
           )}
 

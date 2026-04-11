@@ -50,6 +50,18 @@ export default function EstrategiaPage() {
   }>>([])
   const [carregando, setCarregando] = useState(true)
   const [busca, setBusca] = useState('')
+  const [categoriaFiltro, setCategoriaFiltro] = useState('')
+  const [analisesPorCategoria, setAnalisesPorCategoria] = useState<Array<{
+    categoria: string
+    qtdFornecedores: number
+    totalComprasMensal: number
+    totalCreditoMensal: number
+    totalComprasAnual: number
+    totalCreditoAnual: number
+    creditoPerdidoAnual: number
+    percentualCreditoMedio: number
+  }>>([])
+  const [mostrarCategoria, setMostrarCategoria] = useState(false)
 
   useEffect(() => {
     setCarregando(true)
@@ -60,6 +72,11 @@ export default function EstrategiaPage() {
         setResumo(d.resumo)
         setEconomiaAnual(d.economiaAnual ?? {})
         setAnalisesPorSetor(d.analisesPorSetor ?? [])
+        setAnalisesPorCategoria(d.analisesPorCategoria ?? [])
+        const temCategoria = (d.analisesPorCategoria ?? []).some(
+          (c: { categoria: string }) => c.categoria !== '(sem categoria)'
+        )
+        setMostrarCategoria(temCategoria)
         setCarregando(false)
       })
   }, [anoSelecionado])
@@ -70,15 +87,24 @@ export default function EstrategiaPage() {
   }))
 
   const buscaNorm = busca.trim().toLowerCase().replace(/\D/g, '') || busca.trim().toLowerCase()
-  const analisesFiltradas = busca.trim()
-    ? analises.filter((a) => {
-        const cnpjLimpo = a.cnpj.replace(/\D/g, '')
-        return (
-          a.nome.toLowerCase().includes(busca.trim().toLowerCase()) ||
-          cnpjLimpo.includes(buscaNorm)
-        )
-      })
-    : analises
+  const analisesFiltradas = analises.filter((a) => {
+    if (busca.trim()) {
+      const cnpjLimpo = a.cnpj.replace(/\D/g, '')
+      const matchBusca =
+        a.nome.toLowerCase().includes(busca.trim().toLowerCase()) ||
+        cnpjLimpo.includes(buscaNorm)
+      if (!matchBusca) return false
+    }
+    if (categoriaFiltro) {
+      const cat = a.categoriaCompra ?? '(sem categoria)'
+      if (cat !== categoriaFiltro) return false
+    }
+    return true
+  })
+
+  const categoriasDisponiveis = Array.from(
+    new Set(analises.map((a) => a.categoriaCompra ?? '(sem categoria)'))
+  ).sort()
 
   return (
     <div className="space-y-6">
@@ -275,11 +301,82 @@ export default function EstrategiaPage() {
         </div>
       )}
 
+      {/* Breakdown por plano de contas — visível somente se há categorias cadastradas */}
+      {mostrarCategoria && analisesPorCategoria.length > 0 && (
+        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border/60 bg-muted/50">
+            <h2 className="font-semibold text-foreground/80 text-sm">Impacto por Plano de Contas — {anoSelecionado}</h2>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
+              Compras e crédito CBS+IBS agrupados pela categoria de gasto do seu ERP
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40">
+                <tr>
+                  <th className="text-left px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Categoria</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Fornecedores</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Compras/ano</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Crédito/ano</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">% Crédito</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {analisesPorCategoria.map((c) => (
+                  <tr
+                    key={c.categoria}
+                    className={`hover:bg-accent/30 transition-colors cursor-pointer ${categoriaFiltro === c.categoria ? 'bg-violet-50 dark:bg-violet-900/20' : ''}`}
+                    onClick={() => setCategoriaFiltro(categoriaFiltro === c.categoria ? '' : c.categoria)}
+                    title="Clique para filtrar o ranking por esta categoria"
+                  >
+                    <td className="px-5 py-3 font-medium text-foreground">
+                      <div className="flex items-center gap-2">
+                        {categoriaFiltro === c.categoria && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-violet-500 flex-shrink-0" />
+                        )}
+                        {c.categoria}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-right text-muted-foreground num">{c.qtdFornecedores}</td>
+                    <td className="px-5 py-3 text-right text-foreground num">{formatarMoeda(c.totalComprasAnual)}</td>
+                    <td className="px-5 py-3 text-right text-green-600 font-semibold num">{formatarMoeda(c.totalCreditoAnual)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
+                        c.percentualCreditoMedio < 2
+                          ? 'bg-red-100 text-red-700'
+                          : c.percentualCreditoMedio < 10
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-green-100 text-green-700'
+                      }`}>
+                        {c.percentualCreditoMedio.toFixed(2)}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {categoriaFiltro && (
+            <div className="px-5 py-2.5 border-t border-border/60 bg-violet-50 dark:bg-violet-900/20 flex items-center justify-between text-xs">
+              <span className="text-violet-700 dark:text-violet-300 font-medium">
+                Filtrando ranking por: <strong>{categoriaFiltro}</strong>
+              </span>
+              <button onClick={() => setCategoriaFiltro('')} className="text-violet-500 hover:text-violet-700 underline">
+                Limpar filtro
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tabela de fornecedores */}
       <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-border/60 bg-muted/50 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">
-            <h2 className="font-semibold text-foreground/80 text-sm">Ranking por Custo Efetivo — {anoSelecionado}</h2>
+            <h2 className="font-semibold text-foreground/80 text-sm">
+              Ranking por Custo Efetivo — {anoSelecionado}
+              {categoriaFiltro && <span className="ml-2 text-violet-600 font-normal text-xs">· {categoriaFiltro}</span>}
+            </h2>
             <p className="text-xs text-muted-foreground/70 mt-0.5">Ordenado do mais vantajoso ao mais oneroso</p>
           </div>
           <input
@@ -303,6 +400,9 @@ export default function EstrategiaPage() {
               <tr>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Fornecedor</th>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Regime</th>
+                {mostrarCategoria && (
+                  <th className="text-left px-4 py-3 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Categoria</th>
+                )}
                 <th className="text-right px-4 py-3 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Preço/mês</th>
                 <th className="text-right px-4 py-3 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Crédito</th>
                 <th className="text-right px-4 py-3 text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Custo efetivo</th>
@@ -312,8 +412,8 @@ export default function EstrategiaPage() {
             <tbody className="divide-y divide-border/60">
               {analisesFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-muted-foreground text-sm">
-                    Nenhum fornecedor encontrado para &ldquo;{busca}&rdquo;.
+                  <td colSpan={mostrarCategoria ? 7 : 6} className="p-8 text-center text-muted-foreground text-sm">
+                    Nenhum fornecedor encontrado para &ldquo;{busca || categoriaFiltro}&rdquo;.
                   </td>
                 </tr>
               ) : analisesFiltradas.map((a) => (
@@ -327,6 +427,17 @@ export default function EstrategiaPage() {
                       {labelRegime(a.regime)}
                     </span>
                   </td>
+                  {mostrarCategoria && (
+                    <td className="px-4 py-3">
+                      {a.categoriaCompra ? (
+                        <span className="text-xs bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded">
+                          {a.categoriaCompra}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-right text-foreground num">{formatarMoeda(a.precoMedioMensal)}</td>
                   <td className="px-4 py-3 text-right">
                     {a.creditoVedado ? (

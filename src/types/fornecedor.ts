@@ -45,4 +45,5 @@ export interface AnaliseEstrategica {
   economia: number
   recomendacao: 'manter' | 'renegociar' | 'avaliar_substituto'
   creditoVedado?: boolean
+  categoriaCompra?: string | null   // Plano de contas / categoria de gasto do ERP
 }

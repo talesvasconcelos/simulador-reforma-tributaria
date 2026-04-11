@@ -135,6 +135,8 @@ async function _handlePost(req: NextRequest) {
   const periodoManual = (formData.get('periodo') as string | null)?.toLowerCase() ?? 'auto'
   // Coluna de valor manual: se informada, substitui a auto-detecção
   const colunaValorManual = (formData.get('colunaValor') as string | null)?.trim() || null
+  // Coluna de plano de contas / categoria: opcional
+  const colunaCategoriaManual = (formData.get('colunaCategoria') as string | null)?.trim() || null
 
   if (!arquivo) {
     return NextResponse.json({ error: 'Arquivo não enviado' }, { status: 400 })
@@ -221,6 +223,13 @@ async function _handlePost(req: NextRequest) {
       c.toLowerCase().includes('fornecedor')
   )
 
+  // Coluna de plano de contas / categoria de gasto
+  const colunaCategoria =
+    (colunaCategoriaManual && colunas.includes(colunaCategoriaManual) ? colunaCategoriaManual : null) ??
+    colunas.find((c) =>
+      /plano|categoria|fluxo|conta\b|tipo.?gasto|classificac/i.test(c)
+    )
+
   if (!colunaCnpj) {
     if (colunaApenasCpf) {
       // Planilha só com CPF — retorna aviso sem erro, nada inserido
@@ -264,6 +273,7 @@ async function _handlePost(req: NextRequest) {
     nomeErp: string | undefined
     valorMedioComprasMensal: string | undefined
     valorRaw: string  // diagnóstico: valor bruto da célula
+    categoriaCompra: string | undefined
   }> = []
   const pessoasFisicas: Array<{
     nomeErp: string | undefined
@@ -308,8 +318,12 @@ async function _handlePost(req: NextRequest) {
       continue
     }
 
+    const categoriaCompra = colunaCategoria
+      ? String(linha[colunaCategoria] ?? '').trim().slice(0, 200) || undefined
+      : undefined
+
     if (!valorMensalStr && colunaValor) semValorCnpj++
-    linhasValidas.push({ cnpj, nomeErp, valorMedioComprasMensal: valorMensalStr, valorRaw })
+    linhasValidas.push({ cnpj, nomeErp, valorMedioComprasMensal: valorMensalStr, valorRaw, categoriaCompra })
   }
 
   // --- Fase 2: batch insert em lotes de 500 + atualização de preços dos já cadastrados ---
@@ -330,6 +344,7 @@ async function _handlePost(req: NextRequest) {
             cnpj: r.cnpj,
             nomeErp: r.nomeErp,
             valorMedioComprasMensal: r.valorMedioComprasMensal,
+            categoriaCompra: r.categoriaCompra,
             statusEnriquecimento: 'pendente' as const,
           }))
         )
@@ -357,6 +372,7 @@ async function _handlePost(req: NextRequest) {
               .set({
                 valorMedioComprasMensal: r.valorMedioComprasMensal,
                 ...(r.nomeErp ? { nomeErp: r.nomeErp } : {}),
+                ...(r.categoriaCompra !== undefined ? { categoriaCompra: r.categoriaCompra } : {}),
               })
               .where(
                 and(eq(fornecedores.cnpj, r.cnpj), eq(fornecedores.empresaId, empresa.id))
@@ -377,6 +393,7 @@ async function _handlePost(req: NextRequest) {
               cnpj: r.cnpj,
               nomeErp: r.nomeErp,
               valorMedioComprasMensal: r.valorMedioComprasMensal,
+              categoriaCompra: r.categoriaCompra,
               statusEnriquecimento: 'pendente' as const,
             })
             .onConflictDoNothing({ target: [fornecedores.cnpj, fornecedores.empresaId] })
@@ -477,6 +494,7 @@ async function _handlePost(req: NextRequest) {
     colunaValorDetectada: colunaValor ?? null,
     todasColunas: colunas, // lista completa para o usuário selecionar a correta
     amostraValores,        // primeiros 5 valores: bruto, parsed e mensal após divisor
+    colunaCategoriaDetectada: colunaCategoria ?? null,
     avisoFila: filaErro ? 'Fornecedores salvos, mas fila de enriquecimento falhou. Clique "Enriquecer tudo" na tela de Fornecedores.' : null,
     avisoCpf: pessoasFisicasInseridas > 0 ? `${pessoasFisicasInseridas} pessoa(s) física(s) importada(s) sem crédito de CBS/IBS — nenhum número de CPF armazenado.` : null,
     avisoSemValor: semValorCnpj > 0 ? `${semValorCnpj} fornecedor(es) importado(s) sem valor — célula vazia, zero ou com texto não reconhecido (ex: "-", "N/A"). O campo preço pode ser preenchido manualmente depois.` : null,

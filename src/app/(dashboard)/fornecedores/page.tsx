@@ -731,7 +731,7 @@ export default function FornecedoresPage() {
                   <p className="font-semibold text-foreground text-sm leading-snug">
                     {f.razaoSocial ?? f.nomeErp ?? '—'}
                   </p>
-                  {/* Linha 3: regime + setor + crédito */}
+                  {/* Linha 3: regime + setor + categoria + crédito */}
                   <div className="flex flex-wrap items-center gap-1.5 text-xs">
                     {f.regime && (
                       <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground font-medium">
@@ -740,6 +740,11 @@ export default function FornecedoresPage() {
                     )}
                     {f.setor && (
                       <span className="text-muted-foreground/70">{labelSetor(f.setor)}</span>
+                    )}
+                    {f.categoriaCompra && (
+                      <span className="px-2 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+                        {f.categoriaCompra}
+                      </span>
                     )}
                     {f.setorDiferenciadoReforma && f.reducaoAliquota && parseFloat(f.reducaoAliquota) > 0 && (
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
@@ -865,6 +870,11 @@ export default function FornecedoresPage() {
                         <td className="px-4 py-3 text-muted-foreground text-xs">
                           <div className="flex flex-col gap-0.5">
                             <span>{f.setor ? labelSetor(f.setor) : '—'}</span>
+                            {f.categoriaCompra && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 w-fit">
+                                {f.categoriaCompra}
+                              </span>
+                            )}
                             {f.setorDiferenciadoReforma && f.reducaoAliquota && parseFloat(f.reducaoAliquota) > 0 && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 w-fit">
                                 Redutor {parseFloat(f.reducaoAliquota).toFixed(0)}%
