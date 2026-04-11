@@ -3,10 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
-import { enriquecerCnpjPorRegras } from '@/lib/ai/enriquecimento-regras'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   let userId: string | null = null
@@ -30,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}))
-  // ids opcional — se não informado, enriquece todos os pendentes e com erro
+  // ids opcional — se não informado, enfileira todos os pendentes e com erro
   const ids: string[] | undefined = body.ids
 
   const lista = await db.query.fornecedores.findMany({
@@ -41,17 +39,19 @@ export async function POST(req: NextRequest) {
         ? inArray(fornecedores.id, ids)
         : inArray(fornecedores.statusEnriquecimento, ['pendente', 'erro']),
     ),
-    columns: { id: true, cnpj: true },
+    columns: { id: true },
   })
 
   if (lista.length === 0) {
-    return NextResponse.json({ processados: 0, erros: 0 })
+    return NextResponse.json({ enfileirados: 0 })
   }
 
-  // Marca todos como em_processamento antes de iniciar
+  // Marca como pendente para o cron reprocessar — não processa aqui.
+  // O processamento real acontece no cron /api/cron/enriquecer-pendentes (15/min).
+  // Isso evita timeout de 60s e pico de CPU com grandes volumes (7k+ fornecedores).
   await db
     .update(fornecedores)
-    .set({ statusEnriquecimento: 'em_processamento' })
+    .set({ statusEnriquecimento: 'pendente' })
     .where(
       and(
         eq(fornecedores.empresaId, empresa.id),
@@ -59,18 +59,5 @@ export async function POST(req: NextRequest) {
       )
     )
 
-  // Processa em sequência para não sobrecarregar as APIs externas
-  let processados = 0
-  let erros = 0
-
-  for (const f of lista) {
-    try {
-      await enriquecerCnpjPorRegras(f.cnpj, f.id)
-      processados++
-    } catch {
-      erros++
-    }
-  }
-
-  return NextResponse.json({ processados, erros, total: lista.length })
+  return NextResponse.json({ enfileirados: lista.length })
 }

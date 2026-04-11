@@ -223,7 +223,6 @@ export default function FornecedoresPage() {
   const [enriquecendo, setEnriquecendo] = useState(false)
   const [enriquecendoId, setEnriquecendoId] = useState<string | null>(null)
   const [enriquecendoTodos, setEnriquecendoTodos] = useState(false)
-  const [loteProgresso, setLoteProgresso] = useState<{ atual: number; total: number } | null>(null)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [editPreco, setEditPreco] = useState('')
   const [editCbsPorFora, setEditCbsPorFora] = useState(false)
@@ -376,37 +375,13 @@ export default function FornecedoresPage() {
   }
 
   async function enriquecerTodos() {
-    // Busca TODOS os pendentes/erro do banco (não só os da tela)
-    const res = await fetch('/api/fornecedores?porPagina=5000').then((r) => r.json())
-    const todos: typeof fornecedores = res.fornecedores ?? []
-    const pendentes = todos.filter(
-      (f) => f.statusEnriquecimento === 'pendente' || f.statusEnriquecimento === 'erro'
-    )
-    if (pendentes.length === 0) return
-
+    // Enfileira todos os pendentes/erro para o cron processar (15/min)
+    // Não processa aqui — evita timeout de 60s e pico de CPU com grandes volumes
     setEnriquecendoTodos(true)
-
-    const enriquecerUm = async (id: string) => {
-      try {
-        await fetch('/api/fornecedores/enriquecer', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fornecedorId: id }),
-        })
-      } catch { /* continua */ }
-    }
-
-    // Processa pendentes/erro com intervalo para respeitar rate limit das APIs
-    // "nao_encontrado" é estado FINAL (CNPJ inexistente na RF) — não retentar
-    setLoteProgresso({ atual: 0, total: pendentes.length })
-    for (let i = 0; i < pendentes.length; i++) {
-      setLoteProgresso({ atual: i + 1, total: pendentes.length })
-      await enriquecerUm(pendentes[i].id)
-      if (i < pendentes.length - 1) await new Promise(r => setTimeout(r, 4500))
-    }
-
+    try {
+      await fetch('/api/fornecedores/enriquecer-lote', { method: 'POST', body: JSON.stringify({}) })
+    } catch { /* ignora */ }
     setEnriquecendoTodos(false)
-    setLoteProgresso(null)
     await carregarFornecedores()
   }
 
@@ -501,10 +476,10 @@ export default function FornecedoresPage() {
               Enriquecer todos ({pendentesOuErro})
             </button>
           )}
-          {enriquecendoTodos && loteProgresso && (
+          {enriquecendoTodos && (
             <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-700 dark:text-amber-400 font-medium">
               <span className="animate-spin inline-block w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full" />
-              {loteProgresso.atual}/{loteProgresso.total} · aguarde, respeitando limite das APIs...
+              Enfileirando para processamento...
             </div>
           )}
           {fornecedores.length > 0 && (
