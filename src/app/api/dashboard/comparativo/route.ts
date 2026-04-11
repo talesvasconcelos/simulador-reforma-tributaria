@@ -80,12 +80,13 @@ export async function GET(req: NextRequest) {
     pctB2C = 20
   }
 
-  // Buscar fornecedores ativos com valor
+  // Buscar fornecedores ativos com valor — exclui jsonb grande dadosApiCnpj
   const listaFornecedores = await db.query.fornecedores.findMany({
     where: and(
       eq(fornecedores.empresaId, empresa.id),
       eq(fornecedores.ativo, true)
     ),
+    columns: { dadosApiCnpj: false },
   })
 
   const fornecedoresComValor = listaFornecedores.filter(

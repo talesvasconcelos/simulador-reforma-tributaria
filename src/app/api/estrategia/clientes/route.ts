@@ -52,12 +52,13 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Calcular créditos mensais totais dos fornecedores enriquecidos
+  // Calcular créditos mensais totais dos fornecedores enriquecidos — exclui jsonb grande dadosApiCnpj
   const listaFornecedores = await db.query.fornecedores.findMany({
     where: and(
       eq(fornecedores.empresaId, empresa.id),
       eq(fornecedores.ativo, true),
     ),
+    columns: { dadosApiCnpj: false },
   })
 
   const creditosMensaisFornecedores = listaFornecedores
