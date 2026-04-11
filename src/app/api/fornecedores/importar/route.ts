@@ -82,10 +82,16 @@ function parsearValor(raw: string): number {
   if (temPonto) {
     const partes = limpo.split('.')
     if (partes.length === 2 && partes[1].length <= 2) {
-      // Ponto decimal: 1200.50
+      // Ponto decimal claro: "1200.50"
       return parseFloat(limpo) || 0
     }
-    // Ponto como milhar: 1.200
+    if (partes.length === 2 && partes[1].length > 3) {
+      // Imprecisão IEEE 754 do XLSX/JavaScript: "12964369.740000004"
+      // O Excel armazena 12964369.74 mas JS converte para string com ruído de float.
+      // O ponto É o separador decimal — arredondamos para 2 casas para eliminar o ruído.
+      return Math.round(parseFloat(limpo) * 100) / 100 || 0
+    }
+    // Ponto como milhar brasileiro (exatamente 3 dígitos após o ponto): "1.200" → 1200
     return parseFloat(limpo.replace(/\./g, '')) || 0
   }
 
