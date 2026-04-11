@@ -71,16 +71,16 @@ async function classificarNovidade(
     messages: [
       {
         role: 'user',
-        content: `Analise esta notícia/documento sobre a Reforma Tributária brasileira e classifique:
+        content: `Analise este conteúdo extraído de portal governamental sobre a Reforma Tributária brasileira e classifique:
 
 Tipo: ${tipo}
-Título: ${titulo}
+Fonte: ${titulo}
 Conteúdo: ${conteudo}
 
 Retorne JSON com:
 {
-  "titulo": "título conciso e informativo",
-  "resumo": "resumo em 2-3 frases do impacto prático",
+  "titulo": "título conciso e informativo descrevendo as principais novidades encontradas",
+  "resumo": "resumo em 2-3 frases do impacto prático para empresas",
   "nivelImpacto": "alto" | "medio" | "baixo",
   "impactaSetores": ["setor1", "setor2"],
   "impactaRegimes": ["regime1", "regime2"],
@@ -88,7 +88,7 @@ Retorne JSON com:
   "ehLegislacao": true | false
 }
 
-Retorne apenas JSON válido, sem markdown.`,
+Retorne apenas JSON válido, sem markdown, sem texto adicional.`,
       },
     ],
   })
@@ -97,8 +97,26 @@ Retorne apenas JSON válido, sem markdown.`,
     .filter((b) => b.type === 'text')
     .map((b) => (b as { type: 'text'; text: string }).text)
     .join('')
+    .trim()
 
-  return JSON.parse(texto)
+  // Remover possível markdown ```json ... ``` que Claude às vezes adiciona
+  const jsonLimpo = texto.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim()
+
+  try {
+    return JSON.parse(jsonLimpo)
+  } catch {
+    // Fallback se Claude não retornar JSON válido
+    console.warn('[novidades] Resposta Claude não é JSON válido, usando fallback')
+    return {
+      titulo: `Atualização tributária — ${titulo}`,
+      resumo: conteudo.slice(0, 300),
+      nivelImpacto: 'baixo',
+      impactaSetores: [],
+      impactaRegimes: [],
+      palavrasChave: [],
+      ehLegislacao: false,
+    }
+  }
 }
 
 /**
@@ -109,9 +127,19 @@ export async function atualizarNovidades(): Promise<{ novas: number; erros: numb
   let novas = 0
   let erros = 0
 
+  // Chave de deduplicação por data — garante 1 registro por fonte por dia.
+  // Usar apenas a URL causava que após a primeira execução nunca mais salvava nada.
+  const hoje = new Date().toISOString().slice(0, 10) // "2026-04-11"
+
   for (const fonte of FONTES) {
     try {
       const conteudo = await fetchConteudo(fonte.url)
+
+      if (!conteudo || conteudo.length < 100) {
+        console.warn(`[novidades] Conteúdo insuficiente de ${fonte.url} (${conteudo?.length ?? 0} chars)`)
+        erros++
+        continue
+      }
 
       const classificacao = await classificarNovidade(
         fonte.nome,
@@ -119,9 +147,10 @@ export async function atualizarNovidades(): Promise<{ novas: number; erros: numb
         fonte.tipo
       )
 
-      // Verificar duplicata pela URL
+      // Deduplicação: URL da fonte + data de hoje → 1 registro por fonte por dia
+      const chaveDedup = `${fonte.url}#${hoje}`
       const existente = await db.query.novidades.findFirst({
-        where: eq(novidades.urlOriginal, fonte.url),
+        where: eq(novidades.urlOriginal, chaveDedup),
       })
 
       if (!existente) {
@@ -130,7 +159,7 @@ export async function atualizarNovidades(): Promise<{ novas: number; erros: numb
           resumo: classificacao.resumo,
           conteudoCompleto: conteudo,
           fonte: fonte.nome,
-          urlOriginal: fonte.url,
+          urlOriginal: chaveDedup,
           tipo: fonte.tipo,
           dataPublicacao: new Date(),
           impactaSetores: classificacao.impactaSetores,
@@ -149,14 +178,15 @@ export async function atualizarNovidades(): Promise<{ novas: number; erros: numb
             url: fonte.url,
             dataPublicacao: new Date(),
           }).catch((err) => {
-            console.error(`Erro ao indexar legislação ${fonte.url}:`, err)
+            console.error(`[novidades] Erro ao indexar legislação ${fonte.url}:`, err)
           })
         }
 
         novas++
+        console.log(`[novidades] Nova: "${classificacao.titulo}" (${fonte.nome})`)
       }
     } catch (error) {
-      console.error(`Erro ao processar fonte ${fonte.url}:`, error)
+      console.error(`[novidades] Erro ao processar ${fonte.url}:`, error)
       erros++
     }
   }

@@ -76,8 +76,13 @@ export async function POST(req: NextRequest) {
     .reverse()
     .map((m) => ({ role: m.role as 'user' | 'assistant', conteudo: m.conteudo }))
 
-  // Buscar chunks relevantes para auditoria
-  const chunks = await buscarChunksSimilares(pergunta, 5, empresa.setor)
+  // Buscar chunks relevantes da legislação indexada (RAG).
+  // Se Voyage AI não estiver configurado ou falhar, retorna [] e o chat
+  // funciona normalmente — apenas sem contexto de artigos de lei específicos.
+  const chunks = await buscarChunksSimilares(pergunta, 5, empresa.setor).catch((err) => {
+    console.warn('[agente/chat] RAG indisponível — respondendo sem contexto legislativo:', err)
+    return []
+  })
 
   const contexto = {
     empresa: {

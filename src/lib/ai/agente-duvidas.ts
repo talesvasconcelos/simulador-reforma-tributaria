@@ -1,5 +1,4 @@
 import { anthropic } from './client'
-import { buscarChunksSimilares } from '@/lib/rag/buscar'
 import type { ContextoChat } from '@/types/agente'
 
 const SYSTEM_PROMPT_RAG = `Você é um especialista em Reforma Tributária Brasileira — EC 132/2023 e LC 214/2025.
@@ -23,13 +22,16 @@ Seu papel é responder perguntas de empresários e contadores sobre o impacto da
 /**
  * Agente de dúvidas com RAG — responde perguntas sobre a reforma tributária
  * com contexto da legislação indexada e perfil da empresa.
+ *
+ * Os chunks já foram buscados pelo route antes de chamar esta função.
+ * Não chamamos buscarChunksSimilares aqui — evita double call à Voyage AI.
  */
 export async function* consultarAgente(
   pergunta: string,
   contexto: ContextoChat
 ): AsyncGenerator<string> {
-  // 1. Buscar chunks relevantes da legislação
-  const chunks = await buscarChunksSimilares(pergunta, 5, contexto.empresa.setor)
+  // 1. Usar chunks já buscados pelo route (contexto.chunks)
+  const chunks = contexto.chunks
 
   // 2. Montar contexto da legislação
   const legislacaoContexto = chunks
