@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { adicionarNaFila } from '@/lib/filas/queue'
 import { normalizarCnpj, validarCnpj } from '@/lib/utils'
 import Papa from 'papaparse'
@@ -301,10 +301,11 @@ async function _handlePost(req: NextRequest) {
     linhasValidas.push({ cnpj, nomeErp, valorMedioComprasMensal: valorMensalStr, valorRaw })
   }
 
-  // --- Fase 2: batch insert em lotes de 500 ---
+  // --- Fase 2: batch insert em lotes de 500 + atualização de preços dos já cadastrados ---
   const LOTE = 500
   let inseridos = 0
   let duplicatas = 0
+  let precoAtualizados = 0
   const jobsParaFila: Array<{ cnpj: string; fornecedorId: string; empresaId: string }> = []
 
   for (let i = 0; i < linhasValidas.length; i += LOTE) {
@@ -325,10 +326,33 @@ async function _handlePost(req: NextRequest) {
         .returning({ id: fornecedores.id, cnpj: fornecedores.cnpj })
 
       inseridos += inseridos_rows.length
-      duplicatas += lote.length - inseridos_rows.length
+      const insertedCnpjs = new Set(inseridos_rows.map((r) => r.cnpj))
 
       for (const row of inseridos_rows) {
         jobsParaFila.push({ cnpj: row.cnpj, fornecedorId: row.id, empresaId: empresa.id })
+      }
+
+      // Atualizar preço dos fornecedores que já existiam (não inseridos agora)
+      // Isso permite re-importar a planilha com o período correto e corrigir preços errados.
+      const existentes = lote.filter((r) => !insertedCnpjs.has(r.cnpj))
+      const paraAtualizar = existentes.filter((r) => r.valorMedioComprasMensal !== undefined)
+      duplicatas += existentes.length - paraAtualizar.length
+
+      if (paraAtualizar.length > 0) {
+        await Promise.all(
+          paraAtualizar.map((r) =>
+            db
+              .update(fornecedores)
+              .set({
+                valorMedioComprasMensal: r.valorMedioComprasMensal,
+                ...(r.nomeErp ? { nomeErp: r.nomeErp } : {}),
+              })
+              .where(
+                and(eq(fornecedores.cnpj, r.cnpj), eq(fornecedores.empresaId, empresa.id))
+              )
+          )
+        )
+        precoAtualizados += paraAtualizar.length
       }
     } catch (errLote) {
       console.error(`[importar] erro no lote ${i}-${i + lote.length}:`, errLote)
@@ -420,6 +444,7 @@ async function _handlePost(req: NextRequest) {
   return NextResponse.json({
     total: linhas.length,
     inseridos,
+    precoAtualizados,
     duplicatas,
     pessoasFisicas: pessoasFisicasInseridas,
     erros: cnpjsInvalidos.length,
@@ -430,5 +455,6 @@ async function _handlePost(req: NextRequest) {
     avisoFila: filaErro ? 'Fornecedores salvos, mas fila de enriquecimento falhou. Clique "Enriquecer tudo" na tela de Fornecedores.' : null,
     avisoCpf: pessoasFisicasInseridas > 0 ? `${pessoasFisicasInseridas} pessoa(s) física(s) importada(s) sem crédito de CBS/IBS — nenhum número de CPF armazenado.` : null,
     avisoSemValor: semValorCnpj > 0 ? `${semValorCnpj} fornecedor(es) importado(s) sem valor — célula vazia, zero ou com texto não reconhecido (ex: "-", "N/A"). O campo preço pode ser preenchido manualmente depois.` : null,
+    avisoPrecos: precoAtualizados > 0 ? `${precoAtualizados} fornecedor(es) já cadastrado(s) tiveram o preço atualizado com os valores desta importação.` : null,
   })
 }

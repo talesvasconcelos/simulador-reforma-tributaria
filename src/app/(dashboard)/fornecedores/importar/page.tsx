@@ -7,6 +7,7 @@ import { Upload, FileCheck, AlertCircle, CheckCircle } from 'lucide-react'
 interface ResultadoImportacao {
   total: number
   inseridos: number
+  precoAtualizados: number
   duplicatas: number
   pessoasFisicas: number
   erros: number
@@ -17,6 +18,7 @@ interface ResultadoImportacao {
   avisoFila?: string | null
   avisoCpf?: string | null
   avisoSemValor?: string | null
+  avisoPrecos?: string | null
 }
 
 const EXEMPLOS_COLUNAS = [
@@ -255,8 +257,15 @@ export default function ImportarFornecedoresPage() {
               <p className="text-muted-foreground/70 text-xs">CNPJs inseridos</p>
               <p className="font-bold text-lg text-green-600 num mt-0.5">{resultado.inseridos}</p>
             </div>
+            {resultado.precoAtualizados > 0 && (
+              <div className="col-span-2 p-3 bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/60 rounded-xl">
+                <p className="text-muted-foreground/70 text-xs">Preços atualizados</p>
+                <p className="font-bold text-lg text-blue-600 num mt-0.5">{resultado.precoAtualizados}</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Fornecedores já cadastrados com preço corrigido pela nova importação.</p>
+              </div>
+            )}
             <div className="p-3 bg-yellow-50 dark:bg-yellow-900/15 rounded-xl">
-              <p className="text-muted-foreground/70 text-xs">Duplicatas ignoradas</p>
+              <p className="text-muted-foreground/70 text-xs">Já cadastrados (sem alteração)</p>
               <p className="font-bold text-lg text-yellow-600 num mt-0.5">{resultado.duplicatas}</p>
             </div>
             <div className="p-3 bg-red-50 dark:bg-red-900/15 rounded-xl">
@@ -286,6 +295,11 @@ export default function ImportarFornecedoresPage() {
           {resultado.avisoSemValor && (
             <div className="p-3 bg-orange-50 dark:bg-orange-900/15 border border-orange-200 dark:border-orange-800/60 rounded-xl text-xs text-orange-800 dark:text-orange-300">
               ⚠️ {resultado.avisoSemValor}
+            </div>
+          )}
+          {resultado.avisoPrecos && (
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800/60 rounded-xl text-xs text-blue-800 dark:text-blue-300">
+              ✓ {resultado.avisoPrecos}
             </div>
           )}
           {resultado.avisoFila && (
