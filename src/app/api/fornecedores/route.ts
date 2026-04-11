@@ -36,8 +36,8 @@ export async function GET(req: NextRequest) {
   const setor = searchParams.get('setor')
   const status = searchParams.get('status')
   const busca = searchParams.get('busca')?.trim() ?? ''
-  const pagina = parseInt(searchParams.get('pagina') ?? '1')
-  const porPagina = parseInt(searchParams.get('porPagina') ?? '50')
+  const pagina = Math.max(1, parseInt(searchParams.get('pagina') ?? '1'))
+  const porPagina = Math.min(500, Math.max(1, parseInt(searchParams.get('porPagina') ?? '50')))
 
   const where = busca
     ? and(
@@ -108,10 +108,7 @@ export async function POST(req: NextRequest) {
   const parse = schemaFornecedor.safeParse(body)
 
   if (!parse.success) {
-    return NextResponse.json(
-      { error: 'Dados inválidos', detalhes: parse.error.flatten() },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
   }
 
   const cnpjLimpo = parse.data.cnpj

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { enriquecerCnpjPorRegras } from '@/lib/ai/enriquecimento-regras'
+import { checkRateLimit } from '@/lib/api/rate-limit'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -20,6 +21,15 @@ export async function POST(req: NextRequest) {
   }
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
+  // Rate limit: 10 enriquecimentos manuais por minuto por usuário
+  const { allowed } = await checkRateLimit(`enriquecer:${userId}`, 10, 60)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Muitas requisições. Aguarde um momento antes de enriquecer outro fornecedor.' },
+      { status: 429 }
+    )
   }
 
   const empresa = await db.query.empresas.findFirst({

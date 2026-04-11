@@ -16,8 +16,9 @@ const schemaIndexar = z.object({
 
 export async function POST(req: NextRequest) {
   // Protegido por CRON_SECRET
+  const cronSecret = process.env.CRON_SECRET
   const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || cronSecret.length < 16 || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
@@ -55,10 +56,7 @@ export async function POST(req: NextRequest) {
   const parse = schemaIndexar.safeParse(body)
 
   if (!parse.success) {
-    return NextResponse.json(
-      { error: 'Dados inválidos', detalhes: parse.error.flatten() },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
   }
 
   const documentoId = await indexarDocumento(parse.data)

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
+
+const schemaLote = z.object({
+  ids: z.array(z.string().uuid()).max(500).optional(),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -27,9 +32,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Empresa não cadastrada' }, { status: 404 })
   }
 
-  const body = await req.json().catch(() => ({}))
+  const rawBody = await req.json().catch(() => ({}))
+  const parse = schemaLote.safeParse(rawBody)
+  if (!parse.success) {
+    return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
+  }
   // ids opcional — se não informado, enfileira todos os pendentes e com erro
-  const ids: string[] | undefined = body.ids
+  const { ids } = parse.data
 
   const lista = await db.query.fornecedores.findMany({
     where: and(

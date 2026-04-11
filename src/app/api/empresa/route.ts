@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   if (!parse.success) {
     return NextResponse.json(
-      { error: 'Dados inválidos', detalhes: parse.error.flatten() },
+      { error: 'Dados inválidos' },
       { status: 400 }
     )
   }
@@ -143,7 +143,7 @@ export async function PATCH(req: NextRequest) {
 
   if (!parse.success) {
     return NextResponse.json(
-      { error: 'Dados inválidos', detalhes: parse.error.flatten() },
+      { error: 'Dados inválidos' },
       { status: 400 }
     )
   }

@@ -15,8 +15,9 @@ const DELAY_MS = 1500
 
 export async function GET(req: NextRequest) {
   // Vercel Cron Jobs enviam o header Authorization com o CRON_SECRET configurado no projeto
+  const cronSecret = process.env.CRON_SECRET
   const authorization = req.headers.get('authorization')
-  if (authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || cronSecret.length < 16 || authorization !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 

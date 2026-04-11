@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json()
   const parse = schemaEdicao.safeParse(body)
   if (!parse.success) {
-    return NextResponse.json({ error: 'Dados inválidos', detalhes: parse.error.flatten() }, { status: 400 })
+    return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
   }
 
   const dados = parse.data

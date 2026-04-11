@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     return await _handlePost(req)
   } catch (err) {
     console.error('[importar] erro não tratado:', err)
-    return NextResponse.json({ error: `Erro interno: ${String(err)}` }, { status: 500 })
+    return NextResponse.json({ error: 'Erro interno ao processar arquivo. Tente novamente.' }, { status: 500 })
   }
 }
 
@@ -171,6 +171,14 @@ async function _handlePost(req: NextRequest) {
 
   if (linhas.length === 0) {
     return NextResponse.json({ error: 'Arquivo vazio ou sem dados.' }, { status: 400 })
+  }
+
+  const MAX_LINHAS = 15000
+  if (linhas.length > MAX_LINHAS) {
+    return NextResponse.json(
+      { error: `Arquivo com muitas linhas (${linhas.length}). Máximo: ${MAX_LINHAS} linhas por importação.` },
+      { status: 413 }
+    )
   }
 
   // Detectar colunas automaticamente

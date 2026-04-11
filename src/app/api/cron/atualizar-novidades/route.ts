@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
 
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || cronSecret.length < 16 || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
@@ -23,9 +23,6 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error('[Cron] Erro ao atualizar novidades:', error)
-    return NextResponse.json(
-      { error: 'Erro ao atualizar novidades', detalhe: String(error) },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erro interno ao atualizar novidades' }, { status: 500 })
   }
 }

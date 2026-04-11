@@ -34,10 +34,7 @@ export async function POST(req: NextRequest) {
   const parse = schemaCalculo.safeParse(body)
 
   if (!parse.success) {
-    return NextResponse.json(
-      { error: 'Parâmetros inválidos', detalhes: parse.error.flatten() },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 })
   }
 
   const resultado = calcularImpacto(parse.data)

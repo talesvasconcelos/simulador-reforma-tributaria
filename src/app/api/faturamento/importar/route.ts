@@ -179,6 +179,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Arquivo vazio ou sem dados.' }, { status: 400 })
   }
 
+  // Faturamento mensal: máximo 1.200 linhas (100 anos × 12 meses — mais que suficiente)
+  if (linhas.length > 1200) {
+    return NextResponse.json(
+      { error: `Arquivo com muitas linhas (${linhas.length}). Máximo: 1.200 linhas por importação.` },
+      { status: 413 }
+    )
+  }
+
   const colunas = Object.keys(linhas[0] ?? {})
 
   const colunaCompetencia = detectarColuna(colunas, NOMES_COMPETENCIA)

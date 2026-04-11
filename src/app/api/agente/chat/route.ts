@@ -6,6 +6,7 @@ import { empresas, chatHistorico } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { consultarAgente } from '@/lib/ai/agente-duvidas'
 import { buscarChunksSimilares } from '@/lib/rag/buscar'
+import { checkRateLimit } from '@/lib/api/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,15 @@ export async function POST(req: NextRequest) {
 
   if (!userId || !orgId) {
     return new Response('Não autorizado', { status: 401 })
+  }
+
+  // Rate limit: 30 mensagens por hora por usuário
+  const { allowed } = await checkRateLimit(`chat:${userId}`, 30, 3600)
+  if (!allowed) {
+    return new Response(
+      JSON.stringify({ error: 'Limite de mensagens atingido. Tente novamente em uma hora.' }),
+      { status: 429, headers: { 'Content-Type': 'application/json' } }
+    )
   }
 
   const body = await req.json()
@@ -103,16 +113,21 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ texto: chunk })}\n\n`))
         }
 
-        // Salvar resposta do assistente
-        await db.insert(chatHistorico).values({
-          empresaId: empresa.id,
-          userId,
-          sessionId: sessionIdAtual as `${string}-${string}-${string}-${string}-${string}`,
-          role: 'assistant',
-          conteudo: respostaCompleta,
-          chunksUsados: chunks.map((c) => c.id),
-          documentosFonte: [...new Set(chunks.map((c) => c.documentoId))],
-        })
+        // Salvar resposta do assistente — falha aqui não deve interromper o stream
+        try {
+          await db.insert(chatHistorico).values({
+            empresaId: empresa.id,
+            userId,
+            sessionId: sessionIdAtual as `${string}-${string}-${string}-${string}-${string}`,
+            role: 'assistant',
+            conteudo: respostaCompleta,
+            chunksUsados: chunks.map((c) => c.id),
+            documentosFonte: [...new Set(chunks.map((c) => c.documentoId))],
+          })
+        } catch (dbErr) {
+          console.error('[agente/chat] Erro ao salvar resposta no histórico:', dbErr)
+          // Resposta já foi entregue ao usuário — log mas não propaga
+        }
 
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ sessionId: sessionIdAtual, fim: true })}\n\n`))
         controller.close()
