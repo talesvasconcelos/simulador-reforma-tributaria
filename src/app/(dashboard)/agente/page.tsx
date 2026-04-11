@@ -45,6 +45,10 @@ export default function AgentePage() {
         body: JSON.stringify({ pergunta, sessionId }),
       })
 
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(err.error ?? `Erro ${res.status}`)
+      }
       if (!res.body) throw new Error('Sem stream')
 
       const reader = res.body.getReader()

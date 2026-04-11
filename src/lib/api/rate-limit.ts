@@ -37,8 +37,9 @@ export async function checkRateLimit(
 
     if (!res.ok) return { allowed: true, remaining: limit }
 
-    const data = await res.json() as [[string, number], [string, number]]
-    const count = data[0][1]
+    // Upstash pipeline response: [{"result": N}, {"result": N}]
+    const data = await res.json() as Array<{ result: number }>
+    const count = data[0]?.result ?? 0
     const remaining = Math.max(0, limit - count)
     return { allowed: count <= limit, remaining }
   } catch {
