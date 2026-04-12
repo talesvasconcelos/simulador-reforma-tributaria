@@ -185,7 +185,7 @@ export async function GET(req: NextRequest) {
         ? (c.totalCreditoMensal / c.totalComprasMensal) * 100
         : 0,
     }))
-    .sort((a, b) => b.totalComprasMensal - a.totalComprasMensal) // maior volume primeiro
+    .sort((a, b) => a.percentualCreditoMedio - b.percentualCreditoMedio) // menor crédito primeiro (mais crítico no topo)
 
   return NextResponse.json({
     analises,

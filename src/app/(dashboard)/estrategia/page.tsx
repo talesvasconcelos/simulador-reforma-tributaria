@@ -86,6 +86,16 @@ export default function EstrategiaPage() {
     'Crédito Estimado': Math.round(valor),
   }))
 
+  // Formatter compacto para KPI cards — evita truncar valores grandes
+  const fmtCompacto = (v: number) => {
+    if (v >= 1_000_000_000) return `R$ ${(v / 1_000_000_000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}B`
+    if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`
+    if (v >= 1_000) return `R$ ${(v / 1_000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K`
+    return formatarMoeda(v)
+  }
+
+  const totalGastosAnual = analisesPorCategoria.reduce((sum, c) => sum + c.totalComprasAnual, 0)
+
   const buscaNorm = busca.trim().toLowerCase().replace(/\D/g, '') || busca.trim().toLowerCase()
   const analisesFiltradas = analises.filter((a) => {
     if (busca.trim()) {
@@ -143,17 +153,20 @@ export default function EstrategiaPage() {
             </div>
             <div className="bg-card rounded-2xl border border-blue-200 dark:border-blue-800/60 p-4 shadow-sm min-w-0">
               <p className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-2">Compras/mês</p>
-              <p className="num text-base sm:text-xl font-bold text-blue-600 truncate">{formatarMoeda(resumo.totalComprasMensais)}</p>
+              <p className="num text-base font-bold text-blue-600 leading-tight">{fmtCompacto(resumo.totalComprasMensais)}</p>
+              <p className="text-[10px] text-muted-foreground/50 mt-0.5 num">{formatarMoeda(resumo.totalComprasMensais)}</p>
               <p className="text-xs text-muted-foreground/60 mt-1">total fornecedores</p>
             </div>
             <div className="bg-card rounded-2xl border border-indigo-200 dark:border-indigo-800/60 p-4 shadow-sm min-w-0">
               <p className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-2">Compras/ano</p>
-              <p className="num text-base sm:text-xl font-bold text-indigo-600 truncate">{formatarMoeda(resumo.totalComprasAnuais)}</p>
+              <p className="num text-base font-bold text-indigo-600 leading-tight">{fmtCompacto(resumo.totalComprasAnuais)}</p>
+              <p className="text-[10px] text-muted-foreground/50 mt-0.5 num">{formatarMoeda(resumo.totalComprasAnuais)}</p>
               <p className="text-xs text-muted-foreground/60 mt-1">volume anual</p>
             </div>
             <div className="bg-card rounded-2xl border border-green-200 dark:border-green-800/60 p-4 shadow-sm min-w-0">
               <p className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest mb-2">Crédito/ano</p>
-              <p className="num text-base sm:text-xl font-bold text-green-600 truncate">{formatarMoeda(resumo.totalCreditoEstimadoAnual)}</p>
+              <p className="num text-base font-bold text-green-600 leading-tight">{fmtCompacto(resumo.totalCreditoEstimadoAnual)}</p>
+              <p className="text-[10px] text-muted-foreground/50 mt-0.5 num">{formatarMoeda(resumo.totalCreditoEstimadoAnual)}</p>
               <p className="text-xs text-muted-foreground/60 mt-1">CBS + IBS estimado</p>
             </div>
             <div className="bg-card rounded-2xl border border-amber-200 dark:border-amber-800/60 p-4 shadow-sm min-w-0">
@@ -317,6 +330,7 @@ export default function EstrategiaPage() {
                   <th className="text-left px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Categoria</th>
                   <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Fornecedores</th>
                   <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Compras/ano</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">% do total</th>
                   <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Crédito/ano</th>
                   <th className="text-right px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">% Crédito</th>
                 </tr>
@@ -338,7 +352,24 @@ export default function EstrategiaPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-right text-muted-foreground num">{c.qtdFornecedores}</td>
-                    <td className="px-5 py-3 text-right text-foreground num">{formatarMoeda(c.totalComprasAnual)}</td>
+                    <td className="px-5 py-3 text-right text-foreground num">
+                      <span className="block">{formatarMoeda(c.totalComprasAnual)}</span>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      {totalGastosAnual > 0 ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs font-bold text-foreground num">
+                            {((c.totalComprasAnual / totalGastosAnual) * 100).toFixed(1)}%
+                          </span>
+                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-violet-400 rounded-full"
+                              style={{ width: `${Math.min(100, (c.totalComprasAnual / totalGastosAnual) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : <span className="text-muted-foreground/40">—</span>}
+                    </td>
                     <td className="px-5 py-3 text-right text-green-600 font-semibold num">{formatarMoeda(c.totalCreditoAnual)}</td>
                     <td className="px-5 py-3 text-right">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
