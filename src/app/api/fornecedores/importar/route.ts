@@ -276,8 +276,10 @@ async function _handlePost(req: NextRequest) {
     categoriaCompra: string | undefined
   }> = []
   const pessoasFisicas: Array<{
+    pfCnpj: string          // chave determinística 14 chars para dedup
     nomeErp: string | undefined
     valorMedioComprasMensal: string | undefined
+    categoriaCompra: string | undefined
   }> = []
   let semValorCnpj = 0 // CNPJs válidos sem valor ou com valor zero/inválido
 
@@ -304,10 +306,28 @@ async function _handlePost(req: NextRequest) {
     }
     const valorMensalStr = valorMensal !== undefined ? String(valorMensal) : undefined
 
-    // Célula com texto "cpf" ou vazia → pessoa física, sobe sem crédito, SEM número de CPF
-    const isPessoaFisica = /^cpf$/i.test(cnpjRaw) || cnpjRaw === '' || digits === ''
+    // Pessoa física: coluna contém "CPF" (texto), CPF com 11 dígitos, ou célula vazia
+    const isCpfText = /^cpf$/i.test(cnpjRaw)
+    const isCpfNumero = digits.length === 11
+    const isPessoaFisica = isCpfText || isCpfNumero || cnpjRaw === '' || digits === ''
     if (isPessoaFisica) {
-      pessoasFisicas.push({ nomeErp, valorMedioComprasMensal: valorMensalStr })
+      // ID determinístico de exatamente 14 chars (limite da coluna cnpj varchar(14)):
+      //   CPF número → "CPF" + 11 dígitos = 14 chars
+      //   CPF texto / nome → "PF" + 12 chars do nome normalizado (pad com '0' se curto)
+      //   sem nome → "PF" + 12 primeiros chars de um UUID hex
+      let pfCnpj: string
+      if (isCpfNumero) {
+        pfCnpj = `CPF${digits}` // "CPF" + 11 dígitos = 14 chars
+      } else if (nomeErp) {
+        const nomeKey = nomeErp.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12).padEnd(12, '0')
+        pfCnpj = `PF${nomeKey}` // "PF" + 12 chars = 14 chars
+      } else {
+        pfCnpj = `PF${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`
+      }
+      const categoriaPF = colunaCategoria
+        ? String(linha[colunaCategoria] ?? '').trim().slice(0, 200) || undefined
+        : undefined
+      pessoasFisicas.push({ pfCnpj, nomeErp, valorMedioComprasMensal: valorMensalStr, categoriaCompra: categoriaPF })
       continue
     }
 
@@ -431,27 +451,39 @@ async function _handlePost(req: NextRequest) {
     }
   }
 
-  // --- Fase 2b: inserir pessoas físicas — ID gerado, sem número de CPF, sem crédito ---
+  // --- Fase 2b: inserir/atualizar pessoas físicas com 0% de crédito ---
+  // - ID determinístico (14 chars) → reimportação atualiza em vez de duplicar
+  // - status 'concluido' → nunca entra na fila de enriquecimento
+  // - regime 'isento' + setor 'misto' → aparece na tela Estratégia com 0% crédito
   let pessoasFisicasInseridas = 0
   for (const pf of pessoasFisicas) {
     try {
-      // Gera um identificador único que não é CPF — apenas para satisfazer a coluna obrigatória
-      const pfId = `PF_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
-      const [novo] = await db
+      await db
         .insert(fornecedores)
         .values({
           empresaId: empresa.id,
-          cnpj: pfId,
+          cnpj: pf.pfCnpj,
           nomeErp: pf.nomeErp,
           valorMedioComprasMensal: pf.valorMedioComprasMensal,
+          categoriaCompra: pf.categoriaCompra,
           razaoSocial: pf.nomeErp ?? null,
-          statusEnriquecimento: 'nao_encontrado' as const,
+          regime: 'isento' as const,
+          setor: 'misto' as const,
           geraCredito: false,
-          erroEnriquecimento: 'Pessoa física — sem crédito de CBS/IBS (LC 214/2025)',
+          percentualCreditoEstimado: '0',
+          reducaoAliquota: '0',
+          statusEnriquecimento: 'concluido' as const,
           ultimoEnriquecimentoEm: new Date(),
         })
-        .returning({ id: fornecedores.id })
-      if (novo) pessoasFisicasInseridas++
+        .onConflictDoUpdate({
+          target: [fornecedores.cnpj, fornecedores.empresaId],
+          set: {
+            nomeErp: pf.nomeErp,
+            valorMedioComprasMensal: pf.valorMedioComprasMensal,
+            ...(pf.categoriaCompra !== undefined ? { categoriaCompra: pf.categoriaCompra } : {}),
+          },
+        })
+      pessoasFisicasInseridas++
     } catch (e) {
       console.error('[importar] erro ao inserir pessoa física:', String(e))
     }

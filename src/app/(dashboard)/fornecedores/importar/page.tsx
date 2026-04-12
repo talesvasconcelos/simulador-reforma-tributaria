@@ -65,6 +65,7 @@ export default function ImportarFornecedoresPage() {
       setArquivo(file)
       setPreview(null)
       setColunaValorSelecionada('')
+      setColunaCategoriaSelecionada('')
     }
   }, [])
 
