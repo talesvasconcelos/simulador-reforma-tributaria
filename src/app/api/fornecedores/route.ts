@@ -128,9 +128,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(inserido, { status: 201 })
   }
 
-  // Já existia — retornar o registro existente para que o client possa enriquecer
+  // Já existia — retornar o registro sem dadosApiCnpj (JSON bruto da Receita Federal)
   const existente = await db.query.fornecedores.findFirst({
     where: and(eq(fornecedores.cnpj, cnpjLimpo), eq(fornecedores.empresaId, empresa.id)),
+    columns: { dadosApiCnpj: false },
   })
 
   return NextResponse.json(existente, { status: 200 })

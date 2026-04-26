@@ -64,7 +64,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(dados.opcaoCbsIbsPorFora !== undefined && { opcaoCbsIbsPorFora: dados.opcaoCbsIbsPorFora }),
       atualizadoEm: new Date(),
     })
-    .where(eq(fornecedores.id, id))
+    .where(and(eq(fornecedores.id, id), eq(fornecedores.empresaId, empresa.id)))
     .returning()
 
   return NextResponse.json(atualizado)

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     )
 
     if (!fs.existsSync(caminho)) {
-      return NextResponse.json({ error: 'Arquivo de legislação não encontrado', caminho }, { status: 404 })
+      return NextResponse.json({ error: 'Arquivo de legislação não encontrado' }, { status: 404 })
     }
 
     try {
