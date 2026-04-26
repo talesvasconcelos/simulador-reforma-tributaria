@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/enriquecer-pendentes",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
