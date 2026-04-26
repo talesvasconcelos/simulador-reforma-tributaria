@@ -40,48 +40,37 @@ export async function GET(req: NextRequest) {
         )
       }
 
-      // Enviar progresso a cada 3 segundos por até 10 minutos
-      const MAX_ITERACOES = 200
+      // Enviar progresso a cada 10 segundos por até 10 minutos
+      const MAX_ITERACOES = 60
       let iteracoes = 0
 
       const intervalo = setInterval(async () => {
         iteracoes++
 
         try {
-          // Contagem por status
-          const baseWhere = and(eq(fornecedores.empresaId, empresa.id), eq(fornecedores.ativo, true))
-          const [total, pendente, emProcessamento, concluido, erro, naoEncontrado] = await Promise.all([
-            db.select({ total: count() }).from(fornecedores).where(baseWhere),
-            db.select({ total: count() }).from(fornecedores).where(
-              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'pendente'))
-            ),
-            db.select({ total: count() }).from(fornecedores).where(
-              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'em_processamento'))
-            ),
-            db.select({ total: count() }).from(fornecedores).where(
-              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'concluido'))
-            ),
-            db.select({ total: count() }).from(fornecedores).where(
-              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'erro'))
-            ),
-            db.select({ total: count() }).from(fornecedores).where(
-              and(baseWhere, eq(fornecedores.statusEnriquecimento, 'nao_encontrado'))
-            ),
-          ])
+          // Uma única query GROUP BY substitui 5 COUNTs separados
+          const contagens = await db
+            .select({
+              status: fornecedores.statusEnriquecimento,
+              total: count(),
+            })
+            .from(fornecedores)
+            .where(and(eq(fornecedores.empresaId, empresa.id), eq(fornecedores.ativo, true)))
+            .groupBy(fornecedores.statusEnriquecimento)
 
-          const totalN = total[0].total
-          const concluidoN = concluido[0].total
-          const naoEncontradoN = naoEncontrado[0].total
-          // Processados = concluido + nao_encontrado (ambos já foram tentados)
+          const porStatus = Object.fromEntries(contagens.map((r) => [r.status, r.total]))
+          const totalN = contagens.reduce((acc, r) => acc + r.total, 0)
+          const concluidoN = porStatus['concluido'] ?? 0
+          const naoEncontradoN = porStatus['nao_encontrado'] ?? 0
           const processadosN = concluidoN + naoEncontradoN
           const percentualConcluido = totalN > 0 ? Math.min(100, Math.round((processadosN / totalN) * 100)) : 0
 
           enviar({
             total: totalN,
-            pendente: pendente[0].total,
-            emProcessamento: emProcessamento[0].total,
+            pendente: porStatus['pendente'] ?? 0,
+            emProcessamento: porStatus['em_processamento'] ?? 0,
             concluido: concluidoN,
-            erro: erro[0].total,
+            erro: porStatus['erro'] ?? 0,
             naoEncontrado: naoEncontradoN,
             percentualConcluido,
           })
@@ -95,7 +84,7 @@ export async function GET(req: NextRequest) {
           clearInterval(intervalo)
           controller.close()
         }
-      }, 3000)
+      }, 10000)
 
       // Cleanup quando cliente desconectar
       req.signal.addEventListener('abort', () => {
