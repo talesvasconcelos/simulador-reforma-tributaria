@@ -119,6 +119,38 @@ Retorne apenas JSON válido, sem markdown, sem texto adicional.`,
   }
 }
 
+// Palavras irrelevantes para comparação de títulos (português)
+const STOP_WORDS = new Set([
+  'a', 'o', 'as', 'os', 'um', 'uma', 'de', 'do', 'da', 'dos', 'das',
+  'em', 'no', 'na', 'nos', 'nas', 'por', 'para', 'com', 'sem', 'que',
+  'e', 'é', 'ao', 'aos', 'à', 'às', 'se', 'ou', 'mas', 'não', 'mais',
+])
+
+function palavrasSignificativas(texto: string): Set<string> {
+  return new Set(
+    texto.toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '') // remove acentos
+      .split(/\s+/)
+      .filter((p) => p.length > 3 && !STOP_WORDS.has(p))
+  )
+}
+
+function saoSimilares(a: ClassificacaoNovidade, b: ClassificacaoNovidade): boolean {
+  // Overlap de palavras-chave: 3 ou mais em comum → mesma notícia
+  const kwA = new Set(a.palavrasChave.map((k) => k.toLowerCase()))
+  const kwB = new Set(b.palavrasChave.map((k) => k.toLowerCase()))
+  const overlapKw = [...kwA].filter((k) => kwB.has(k)).length
+  if (overlapKw >= 3) return true
+
+  // Overlap de palavras significativas do título: 3 ou mais → mesma notícia
+  const titA = palavrasSignificativas(a.titulo)
+  const titB = palavrasSignificativas(b.titulo)
+  const overlapTit = [...titA].filter((p) => titB.has(p)).length
+  if (overlapTit >= 3) return true
+
+  return false
+}
+
 /**
  * Monitora fontes externas, classifica novas publicações e as salva no banco.
  * Chamado pelo cron job diário.
@@ -127,9 +159,16 @@ export async function atualizarNovidades(): Promise<{ novas: number; erros: numb
   let novas = 0
   let erros = 0
 
-  // Chave de deduplicação por data — garante 1 registro por fonte por dia.
-  // Usar apenas a URL causava que após a primeira execução nunca mais salvava nada.
   const hoje = new Date().toISOString().slice(0, 10) // "2026-04-11"
+
+  // Fase 1: buscar e classificar todas as fontes antes de salvar qualquer coisa
+  type Candidata = {
+    fonte: FonteNovidade
+    classificacao: ClassificacaoNovidade
+    conteudo: string
+    chaveDedup: string
+  }
+  const candidatas: Candidata[] = []
 
   for (const fonte of FONTES) {
     try {
@@ -141,14 +180,27 @@ export async function atualizarNovidades(): Promise<{ novas: number; erros: numb
         continue
       }
 
-      const classificacao = await classificarNovidade(
-        fonte.nome,
-        conteudo,
-        fonte.tipo
-      )
+      const classificacao = await classificarNovidade(fonte.nome, conteudo, fonte.tipo)
+      candidatas.push({ fonte, classificacao, conteudo, chaveDedup: `${fonte.url}#${hoje}` })
+    } catch (error) {
+      console.error(`[novidades] Erro ao processar ${fonte.url}:`, error)
+      erros++
+    }
+  }
 
-      // Deduplicação: URL da fonte + data de hoje → 1 registro por fonte por dia
-      const chaveDedup = `${fonte.url}#${hoje}`
+  // Fase 2: remover duplicatas entre fontes (mesma notícia publicada por dois portais)
+  const unicas = candidatas.filter((item, idx) =>
+    !candidatas.slice(0, idx).some((anterior) => saoSimilares(item.classificacao, anterior.classificacao))
+  )
+
+  const duplicatasRemovidas = candidatas.length - unicas.length
+  if (duplicatasRemovidas > 0) {
+    console.log(`[novidades] ${duplicatasRemovidas} notícia(s) duplicada(s) entre fontes removida(s)`)
+  }
+
+  // Fase 3: salvar apenas as únicas que ainda não existem no banco
+  for (const { fonte, classificacao, conteudo, chaveDedup } of unicas) {
+    try {
       const existente = await db.query.novidades.findFirst({
         where: eq(novidades.urlOriginal, chaveDedup),
       })
@@ -168,7 +220,6 @@ export async function atualizarNovidades(): Promise<{ novas: number; erros: numb
           palavrasChave: classificacao.palavrasChave,
         })
 
-        // Se for legislação, indexar na base RAG para o chat
         if (classificacao.ehLegislacao && conteudo.length > 500) {
           await indexarDocumento({
             titulo: classificacao.titulo,
@@ -186,7 +237,7 @@ export async function atualizarNovidades(): Promise<{ novas: number; erros: numb
         console.log(`[novidades] Nova: "${classificacao.titulo}" (${fonte.nome})`)
       }
     } catch (error) {
-      console.error(`[novidades] Erro ao processar ${fonte.url}:`, error)
+      console.error(`[novidades] Erro ao salvar novidade de ${fonte.url}:`, error)
       erros++
     }
   }
