@@ -5,6 +5,7 @@ import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { adicionarNaFila } from '@/lib/filas/queue'
 import { normalizarCnpj, validarCnpj } from '@/lib/utils'
+import { checkRateLimit } from '@/lib/api/rate-limit'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -120,6 +121,15 @@ async function _handlePost(req: NextRequest) {
 
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
+  // Rate limit: 20 uploads por hora por usuário (arquivos de até 50 MB são pesados)
+  const { allowed, retryAfter } = await checkRateLimit(`importar:${userId}`, 20, 3600)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Limite de importações atingido. Tente novamente em alguns minutos.' },
+      { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+    )
   }
 
   const empresa = await db.query.empresas.findFirst({

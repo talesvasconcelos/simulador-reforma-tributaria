@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import { calcularImpacto } from '@/lib/simulador/motor-calculo'
+import { checkRateLimit } from '@/lib/api/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,15 @@ export async function POST(req: NextRequest) {
 
   if (!userId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
+  // Rate limit: 200 simulações por hora por usuário
+  const { allowed, retryAfter } = await checkRateLimit(`calcular:${userId}`, 200, 3600)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Limite de simulações atingido. Tente novamente em alguns minutos.' },
+      { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+    )
   }
 
   const body = await req.json()
