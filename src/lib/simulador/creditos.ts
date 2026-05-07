@@ -79,7 +79,7 @@ export function calcularCreditos(params: ParamsCredito): ResultadoCredito {
     }
   }
 
-  if (regime === 'simples_nacional' || regime === 'mei' || regime === 'nanoempreendedor') {
+  if (regime === 'simples_nacional') {
     // Crédito presumido estimado para o tomador do serviço/produto
     // O Simples recolhe CBS+IBS em alíquota diferenciada (não destaca no documento)
     // O adquirente pode apropriar crédito presumido estimado de ~1.5% sobre o valor
@@ -92,11 +92,38 @@ export function calcularCreditos(params: ParamsCredito): ResultadoCredito {
       totalCredito: creditoPrimido,
       baseCalculo: comprasAnuais,
       percentualEfetivo: ALIQUOTA_CREDITO_PRESUMIDO * 100,
-      metodologia: 'Crédito presumido estimado (~1.5%) — fornecedor Simples Nacional/MEI',
+      metodologia: 'Crédito presumido estimado (~1.5%) — fornecedor Simples Nacional',
     }
   }
 
-  // Isento ou não identificado: sem crédito
+  if (regime === 'mei') {
+    // MEI Carreteiro e transportadores (CNAE 49-53): crédito presumido ~0.5%
+    // Os demais MEI (serviços, comércio) não geram crédito para o adquirente
+    // conforme entendimento da LC 214/2025 — regras específicas a definir em LC complementar
+    const ehTransporte = setor.startsWith('transporte')
+    if (!ehTransporte) {
+      return {
+        creditoCbs: 0,
+        creditoIbs: 0,
+        totalCredito: 0,
+        baseCalculo: comprasAnuais,
+        percentualEfetivo: 0,
+        metodologia: 'MEI (não transportador) — sem crédito presumido',
+      }
+    }
+    const ALIQUOTA_MEI_TRANS = 0.005 // 0.5% estimado
+    const creditoPrimido = comprasAnuais * ALIQUOTA_MEI_TRANS
+    return {
+      creditoCbs: creditoPrimido * 0.6,
+      creditoIbs: creditoPrimido * 0.4,
+      totalCredito: creditoPrimido,
+      baseCalculo: comprasAnuais,
+      percentualEfetivo: 0.5,
+      metodologia: 'Crédito presumido estimado (~0.5%) — MEI transportador (carreteiro)',
+    }
+  }
+
+  // Nanoempreendedor, isento ou não identificado: sem crédito
   return {
     creditoCbs: 0,
     creditoIbs: 0,

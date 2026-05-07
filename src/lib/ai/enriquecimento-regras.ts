@@ -113,8 +113,12 @@ function calcularCredito(regime: string, setor: string): number {
   if (regime === 'lucro_real' || regime === 'lucro_presumido') {
     return creditoCbs
   }
-  if (regime === 'simples_nacional') return 1.5  // crédito presumido fixo
-  if (regime === 'mei') return 0.5               // crédito presumido fixo MEI
+  if (regime === 'simples_nacional') return 1.5
+  if (regime === 'mei') {
+    // MEI transportador (CNAE 49-53): crédito presumido 0.5%
+    // Outros MEI: sem crédito (não geram CBS/IBS destacado para o comprador)
+    return setor.startsWith('transporte') ? 0.5 : 0
+  }
   return 0
 }
 

@@ -125,7 +125,9 @@ Retorne APENAS um JSON válido com esta estrutura exata (sem markdown, sem texto
 }
 
 Regras de classificação para a Reforma Tributária (LC 214/2025):
-- Simples Nacional / MEI: NÃO gera crédito integral. gera_credito=true mas crédito presumido estimado: MEI=0.5%, Simples=1.5%.
+- Simples Nacional: NÃO gera crédito integral. gera_credito=true, percentual_credito_estimado=1.5 (crédito presumido ~1.5%).
+- MEI transportador (CNAE 49xx, 50xx, 51xx, 52xx, 53xx — setor transporte/transporte_cargas/transporte_coletivo_passageiros): gera_credito=true, percentual_credito_estimado=0.5 (crédito presumido ~0.5% — ex: MEI Carreteiro).
+- Outros MEI (serviços, comércio, indústria): gera_credito=false, percentual_credito_estimado=0.
 - Lucro Presumido / Real: Gera crédito integral. gera_credito=true, percentual_credito_estimado=8.8 (CBS) ou mais com IBS.
 - Nanoempreendedor / Isento: gera_credito=false, percentual=0.
 - Reduções de alíquota: saúde=60%, educação=60%, agronegócio=60%, transporte coletivo=60%, entidades desportivas=60%, construção civil=30%, profissionais liberais=30%.

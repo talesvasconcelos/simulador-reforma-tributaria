@@ -70,6 +70,8 @@ function calcularCreditoNoAno(f: Fornecedor, ano: number): CreditoAno {
     return { cbs: 0, ibs: 0, total: 1.5, creditoMensal: preco ? preco * 0.015 : null }
   }
   if (ehMei) {
+    const ehTransporte = ['transporte', 'transporte_cargas', 'transporte_coletivo_passageiros'].includes(f.setor ?? '')
+    if (!ehTransporte) return { cbs: 0, ibs: 0, total: 0, creditoMensal: 0 }
     return { cbs: 0, ibs: 0, total: 0.5, creditoMensal: preco ? preco * 0.005 : null }
   }
   return { cbs: 0, ibs: 0, total: 0, creditoMensal: 0 }
@@ -220,12 +222,15 @@ export default function FornecedoresPage() {
   const [erroCnpj, setErroCnpj] = useState<string | null>(null)
   const [adicionando, setAdicionando] = useState(false)
   const [adicionado, setAdicionado] = useState(false)
+  const [valorManual, setValorManual] = useState('')
+  const [categoriaManual, setCategoriaManual] = useState('')
   const [enriquecendo, setEnriquecendo] = useState(false)
   const [enriquecendoId, setEnriquecendoId] = useState<string | null>(null)
   const [enriquecendoTodos, setEnriquecendoTodos] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [editPreco, setEditPreco] = useState('')
   const [editCbsPorFora, setEditCbsPorFora] = useState(false)
+  const [editCategoria, setEditCategoria] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [confirmandoExclusaoId, setConfirmandoExclusaoId] = useState<string | null>(null)
   const [excluindo, setExcluindo] = useState(false)
@@ -390,10 +395,14 @@ export default function FornecedoresPage() {
     setAdicionando(true)
     setErroCnpj(null)
     try {
+      const body: Record<string, unknown> = { cnpj: resultadoCnpj.cnpj.replace(/\D/g, '') }
+      const v = parseFloat(valorManual)
+      if (v > 0) body.valorMedioComprasMensal = v
+      if (categoriaManual.trim()) body.categoriaCompra = categoriaManual.trim()
       const res = await fetch('/api/fornecedores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cnpj: resultadoCnpj.cnpj.replace(/\D/g, '') }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -416,6 +425,7 @@ export default function FornecedoresPage() {
     setEditandoId(f.id)
     setEditPreco(f.precoReferencia ?? f.valorMedioComprasMensal ?? '')
     setEditCbsPorFora(f.opcaoCbsIbsPorFora ?? false)
+    setEditCategoria(f.categoriaCompra ?? '')
   }
 
   async function salvarEdicao(id: string) {
@@ -427,6 +437,7 @@ export default function FornecedoresPage() {
         body: JSON.stringify({
           precoReferencia: parseFloat(editPreco) || undefined,
           opcaoCbsIbsPorFora: editCbsPorFora,
+          categoriaCompra: editCategoria.trim() || undefined,
         }),
       })
       await carregarFornecedores()
@@ -452,6 +463,8 @@ export default function FornecedoresPage() {
     setResultadoCnpj(null)
     setErroCnpj(null)
     setAdicionado(false)
+    setValorManual('')
+    setCategoriaManual('')
     inputRef.current?.focus()
   }
 
@@ -592,7 +605,28 @@ export default function FornecedoresPage() {
                   </div>
                 </div>
 
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 flex flex-col gap-2 items-end">
+                  {!adicionado && !enriquecendo && (
+                    <div className="flex flex-col gap-1.5 min-w-[200px]">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Valor médio mensal (R$)"
+                        value={valorManual}
+                        onChange={(e) => setValorManual(e.target.value)}
+                        className={`${inputCls} text-right text-sm`}
+                      />
+                      <input
+                        type="text"
+                        maxLength={200}
+                        placeholder="Categoria / Plano de contas"
+                        value={categoriaManual}
+                        onChange={(e) => setCategoriaManual(e.target.value)}
+                        className={`${inputCls} text-sm`}
+                      />
+                    </div>
+                  )}
                   {enriquecendo ? (
                     <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-700 dark:text-blue-400 font-medium">
                       <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
@@ -817,6 +851,12 @@ export default function FornecedoresPage() {
                           onChange={(e) => setEditPreco(e.target.value)} placeholder="0,00"
                           className="flex-1 min-w-0 px-2 py-1 border border-border rounded text-sm text-right bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Categoria</label>
+                        <input type="text" maxLength={200} value={editCategoria}
+                          onChange={(e) => setEditCategoria(e.target.value)} placeholder="Plano de contas / fluxo"
+                          className="flex-1 min-w-0 px-2 py-1 border border-border rounded text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
                       {(f.regime === 'simples_nacional' || f.regime === 'mei') && (
                         <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground cursor-pointer">
                           <input type="checkbox" checked={editCbsPorFora} onChange={(e) => setEditCbsPorFora(e.target.checked)}
@@ -978,6 +1018,12 @@ export default function FornecedoresPage() {
                                 <input type="number" min="0" step="0.01" value={editPreco}
                                   onChange={(e) => setEditPreco(e.target.value)} placeholder="0,00"
                                   className="w-32 px-2 py-1 border border-border rounded text-sm text-right bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs font-medium text-muted-foreground">Categoria</label>
+                                <input type="text" maxLength={200} value={editCategoria}
+                                  onChange={(e) => setEditCategoria(e.target.value)} placeholder="Plano de contas / fluxo"
+                                  className="w-48 px-2 py-1 border border-border rounded text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500" />
                               </div>
                               {(f.regime === 'simples_nacional' || f.regime === 'mei') && (
                                 <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground cursor-pointer">
