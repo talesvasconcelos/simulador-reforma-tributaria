@@ -1,9 +1,21 @@
-import { clerkMiddleware } from '@clerk/nextjs/server'
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import type { NextFetchEvent } from 'next/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-const clerkHandler = clerkMiddleware((auth, req) => {
-  // Auth handled individually per route
+// Rotas que não exigem autenticação Clerk
+// Cron e rag/indexar são protegidas por CRON_SECRET na própria rota
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api/cron(.*)',
+  '/api/rag/indexar',
+])
+
+const clerkHandler = clerkMiddleware(async (auth, req) => {
+  if (!isPublicRoute(req)) {
+    await auth.protect()
+  }
 })
 
 export async function proxy(request: NextRequest, event: NextFetchEvent) {
