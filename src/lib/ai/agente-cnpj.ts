@@ -244,11 +244,16 @@ export async function enriquecerCnpj(cnpj: string, fornecedorId: string): Promis
 
     // Erro transiente (API fora do ar, rate limit, falha de parse Claude).
     // Salva o motivo como 'erro' e LANÇA — BullMQ vai retentar com backoff.
+    const erroMsg = String(error)
+      .replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]')  // tokens em headers
+      .replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]')      // chaves Anthropic/OpenAI
+      .replace(/\?[^\s]{20,}/g, '?[REDACTED]')           // query strings longas (tokens em URL)
+      .slice(0, 500)
     await db
       .update(fornecedores)
       .set({
         statusEnriquecimento: 'erro',
-        erroEnriquecimento: String(error),
+        erroEnriquecimento: erroMsg,
         ultimoEnriquecimentoEm: new Date(),
       })
       .where(eq(fornecedores.id, fornecedorId))

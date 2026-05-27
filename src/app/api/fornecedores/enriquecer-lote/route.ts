@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
+import { proibidoParaAdmin } from '@/lib/auth/roles'
 
 const schemaLote = z.object({
   ids: z.array(z.string().uuid()).max(500).optional(),
@@ -14,16 +15,21 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: NextRequest) {
   let userId: string | null = null
   let orgId: string | null = null
+  let orgRole: string | null = null
   try {
     const authResult = await auth()
     userId = authResult.userId
     orgId = authResult.orgId ?? null
+    orgRole = authResult.orgRole ?? null
   } catch {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+
+  const bloqueado = proibidoParaAdmin(orgRole)
+  if (bloqueado) return bloqueado
 
   const empresa = await db.query.empresas.findFirst({
     where: eq(empresas.organizationId, orgId),

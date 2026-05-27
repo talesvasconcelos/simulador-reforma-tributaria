@@ -6,6 +6,7 @@ import { eq, and } from 'drizzle-orm'
 import { adicionarNaFila } from '@/lib/filas/queue'
 import { normalizarCnpj, validarCnpj } from '@/lib/utils'
 import { checkRateLimit } from '@/lib/api/rate-limit'
+import { proibidoParaAdmin } from '@/lib/auth/roles'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -111,10 +112,12 @@ export async function POST(req: NextRequest) {
 async function _handlePost(req: NextRequest) {
   let userId: string | null = null
   let orgId: string | null = null
+  let orgRole: string | null = null
   try {
     const authResult = await auth()
     userId = authResult.userId
     orgId = authResult.orgId ?? null
+    orgRole = authResult.orgRole ?? null
   } catch {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
@@ -122,6 +125,9 @@ async function _handlePost(req: NextRequest) {
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+
+  const bloqueado = proibidoParaAdmin(orgRole)
+  if (bloqueado) return bloqueado
 
   // Rate limit: 20 uploads por hora por usuário (arquivos de até 50 MB são pesados)
   const { allowed, retryAfter } = await checkRateLimit(`importar:${userId}`, 20, 3600)

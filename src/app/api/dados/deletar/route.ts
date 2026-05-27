@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/db'
 import { empresas, simulacoes, chatHistorico } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { proibidoParaAdmin } from '@/lib/auth/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,10 +21,12 @@ export const dynamic = 'force-dynamic'
 export async function DELETE(req: NextRequest) {
   let userId: string | null = null
   let orgId: string | null = null
+  let orgRole: string | null = null
   try {
     const authResult = await auth()
     userId = authResult.userId
     orgId = authResult.orgId ?? null
+    orgRole = authResult.orgRole ?? null
   } catch {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
@@ -31,6 +34,9 @@ export async function DELETE(req: NextRequest) {
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+
+  const bloqueado = proibidoParaAdmin(orgRole)
+  if (bloqueado) return bloqueado
 
   // Dupla confirmação para proteger contra exclusão acidental
   const { searchParams } = new URL(req.url)

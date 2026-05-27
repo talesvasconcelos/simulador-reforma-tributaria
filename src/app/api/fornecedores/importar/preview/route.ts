@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { proibidoParaAdmin } from '@/lib/auth/roles'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -11,14 +12,19 @@ export const dynamic = 'force-dynamic'
  * o usuário confirmar qual coluna usar antes de importar.
  */
 export async function POST(req: NextRequest) {
+  let orgRole: string | null = null
   try {
     const authResult = await auth()
     if (!authResult.userId || !authResult.orgId) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
+    orgRole = authResult.orgRole ?? null
   } catch {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+
+  const bloqueado = proibidoParaAdmin(orgRole)
+  if (bloqueado) return bloqueado
 
   const formData = await req.formData()
   const arquivo = formData.get('arquivo') as File | null

@@ -5,6 +5,7 @@ import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { enriquecerCnpjPorRegras } from '@/lib/ai/enriquecimento-regras'
 import { checkRateLimit } from '@/lib/api/rate-limit'
+import { proibidoParaAdmin } from '@/lib/auth/roles'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -12,16 +13,21 @@ export const maxDuration = 60
 export async function POST(req: NextRequest) {
   let userId: string | null = null
   let orgId: string | null = null
+  let orgRole: string | null = null
   try {
     const authResult = await auth()
     userId = authResult.userId
     orgId = authResult.orgId ?? null
+    orgRole = authResult.orgRole ?? null
   } catch {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+
+  const bloqueado = proibidoParaAdmin(orgRole)
+  if (bloqueado) return bloqueado
 
   // Rate limit: 10 enriquecimentos manuais por minuto por usuário
   const { allowed } = await checkRateLimit(`enriquecer:${userId}`, 10, 60)

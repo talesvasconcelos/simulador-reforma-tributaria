@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { formatarCnpj, formatarMoeda, labelRegime, labelSetor } from '@/lib/utils'
 import type { Fornecedor } from '@/types/empresa'
+import { useIsGestor } from '@/hooks/use-role'
 
 const badgeStatus = {
   pendente: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
@@ -210,6 +211,7 @@ function PainelEvolucao({ f, anos, onChangeAnos }: PainelEvolucaoProps) {
 }
 
 export default function FornecedoresPage() {
+  const isGestor = useIsGestor()
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
   const [carregando, setCarregando] = useState(true)
   const [progresso, setProgresso] = useState({
@@ -482,7 +484,7 @@ export default function FornecedoresPage() {
           <p className="text-xs text-muted-foreground/70 mt-0.5">Gestão e enriquecimento de CNPJs</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {pendentesOuErro > 0 && !enriquecendoTodos && (
+          {isGestor && pendentesOuErro > 0 && !enriquecendoTodos && (
             <button
               onClick={enriquecerTodos}
               className="px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
@@ -491,13 +493,13 @@ export default function FornecedoresPage() {
               Enriquecer todos ({pendentesOuErro})
             </button>
           )}
-          {enriquecendoTodos && (
+          {isGestor && enriquecendoTodos && (
             <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-700 dark:text-amber-400 font-medium">
               <span className="animate-spin inline-block w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full" />
               Enfileirando para processamento...
             </div>
           )}
-          {fornecedores.length > 0 && (
+          {isGestor && fornecedores.length > 0 && (
             <button
               onClick={exportarCsv}
               className="px-4 py-2 bg-card border border-border text-foreground text-sm font-semibold rounded-xl hover:bg-accent/60 transition-colors"
@@ -511,12 +513,14 @@ export default function FornecedoresPage() {
           >
             Comparar
           </Link>
-          <Link
-            href="/fornecedores/importar"
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-600/20"
-          >
-            Importar planilha
-          </Link>
+          {isGestor && (
+            <Link
+              href="/fornecedores/importar"
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-600/20"
+            >
+              Importar planilha
+            </Link>
+          )}
         </div>
       </div>
 
@@ -605,47 +609,49 @@ export default function FornecedoresPage() {
                   </div>
                 </div>
 
-                <div className="flex-shrink-0 flex flex-col gap-2 items-end">
-                  {!adicionado && !enriquecendo && (
-                    <div className="flex flex-col gap-1.5 min-w-[200px]">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Valor médio mensal (R$)"
-                        value={valorManual}
-                        onChange={(e) => setValorManual(e.target.value)}
-                        className={`${inputCls} text-right text-sm`}
-                      />
-                      <input
-                        type="text"
-                        maxLength={200}
-                        placeholder="Categoria / Plano de contas"
-                        value={categoriaManual}
-                        onChange={(e) => setCategoriaManual(e.target.value)}
-                        className={`${inputCls} text-sm`}
-                      />
-                    </div>
-                  )}
-                  {enriquecendo ? (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-700 dark:text-blue-400 font-medium">
-                      <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
-                      Analisando com IA...
-                    </div>
-                  ) : adicionado ? (
-                    <div className="flex items-center gap-1.5 px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400 font-medium">
-                      ✓ Enriquecido com sucesso
-                    </div>
-                  ) : (
-                    <button
-                      onClick={adicionarFornecedor}
-                      disabled={adicionando}
-                      className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
-                    >
-                      {adicionando ? 'Adicionando...' : 'Adicionar fornecedor'}
-                    </button>
-                  )}
-                </div>
+                {isGestor && (
+                  <div className="flex-shrink-0 flex flex-col gap-2 items-end">
+                    {!adicionado && !enriquecendo && (
+                      <div className="flex flex-col gap-1.5 min-w-[200px]">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Valor médio mensal (R$)"
+                          value={valorManual}
+                          onChange={(e) => setValorManual(e.target.value)}
+                          className={`${inputCls} text-right text-sm`}
+                        />
+                        <input
+                          type="text"
+                          maxLength={200}
+                          placeholder="Categoria / Plano de contas"
+                          value={categoriaManual}
+                          onChange={(e) => setCategoriaManual(e.target.value)}
+                          className={`${inputCls} text-sm`}
+                        />
+                      </div>
+                    )}
+                    {enriquecendo ? (
+                      <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-700 dark:text-blue-400 font-medium">
+                        <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
+                        Analisando com IA...
+                      </div>
+                    ) : adicionado ? (
+                      <div className="flex items-center gap-1.5 px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-400 font-medium">
+                        ✓ Enriquecido com sucesso
+                      </div>
+                    ) : (
+                      <button
+                        onClick={adicionarFornecedor}
+                        disabled={adicionando}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                      >
+                        {adicionando ? 'Adicionando...' : 'Adicionar fornecedor'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -800,50 +806,62 @@ export default function FornecedoresPage() {
                     </div>
                   )}
                   {/* Ações */}
-                  {confirmandoExclusaoId === f.id ? (
-                    <div className="flex items-center gap-2 pt-1">
-                      <span className="text-xs text-red-600 font-medium">Confirmar exclusão?</span>
-                      <button onClick={() => excluirFornecedor(f.id)} disabled={excluindo}
-                        className="text-xs text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded font-semibold disabled:opacity-40">
-                        {excluindo ? '...' : 'Excluir'}
-                      </button>
-                      <button onClick={() => setConfirmandoExclusaoId(null)}
-                        className="text-xs text-muted-foreground hover:text-foreground font-medium">
-                        Cancelar
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 pt-1 flex-wrap">
-                      {enriquecendoId === f.id ? (
-                        <span className="text-xs text-blue-600 flex items-center gap-1">
-                          <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
-                          Analisando...
-                        </span>
-                      ) : (
-                        <button onClick={() => rodarEnriquecimento(f.id, 'tabela')}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                          {f.statusEnriquecimento === 'concluido' ? 'Reenriquecer' : 'Enriquecer'}
+                  {isGestor ? (
+                    confirmandoExclusaoId === f.id ? (
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-xs text-red-600 font-medium">Confirmar exclusão?</span>
+                        <button onClick={() => excluirFornecedor(f.id)} disabled={excluindo}
+                          className="text-xs text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded font-semibold disabled:opacity-40">
+                          {excluindo ? '...' : 'Excluir'}
                         </button>
-                      )}
-                      {f.statusEnriquecimento === 'concluido' && (
+                        <button onClick={() => setConfirmandoExclusaoId(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground font-medium">
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 pt-1 flex-wrap">
+                        {enriquecendoId === f.id ? (
+                          <span className="text-xs text-blue-600 flex items-center gap-1">
+                            <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
+                            Analisando...
+                          </span>
+                        ) : (
+                          <button onClick={() => rodarEnriquecimento(f.id, 'tabela')}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                            {f.statusEnriquecimento === 'concluido' ? 'Reenriquecer' : 'Enriquecer'}
+                          </button>
+                        )}
+                        {f.statusEnriquecimento === 'concluido' && (
+                          <button
+                            onClick={() => { setEvolucaoAbertaId(evolucaoAbertaId === f.id ? null : f.id); setAnosEvolucao(ANOS_REFORMA) }}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                            {evolucaoAbertaId === f.id ? 'Fechar' : 'Evolução'}
+                          </button>
+                        )}
+                        <button onClick={() => editandoId === f.id ? setEditandoId(null) : abrirEdicao(f)}
+                          className="text-xs text-muted-foreground/70 hover:text-foreground font-medium">
+                          {editandoId === f.id ? 'Fechar' : 'Editar'}
+                        </button>
+                        <button onClick={() => setConfirmandoExclusaoId(f.id)}
+                          className="text-xs text-red-400 hover:text-red-600 font-medium">
+                          Excluir
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    f.statusEnriquecimento === 'concluido' && (
+                      <div className="flex items-center gap-3 pt-1 flex-wrap">
                         <button
                           onClick={() => { setEvolucaoAbertaId(evolucaoAbertaId === f.id ? null : f.id); setAnosEvolucao(ANOS_REFORMA) }}
                           className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
                           {evolucaoAbertaId === f.id ? 'Fechar' : 'Evolução'}
                         </button>
-                      )}
-                      <button onClick={() => editandoId === f.id ? setEditandoId(null) : abrirEdicao(f)}
-                        className="text-xs text-muted-foreground/70 hover:text-foreground font-medium">
-                        {editandoId === f.id ? 'Fechar' : 'Editar'}
-                      </button>
-                      <button onClick={() => setConfirmandoExclusaoId(f.id)}
-                        className="text-xs text-red-400 hover:text-red-600 font-medium">
-                        Excluir
-                      </button>
-                    </div>
+                      </div>
+                    )
                   )}
                   {/* Edição inline mobile */}
-                  {editandoId === f.id && (
+                  {isGestor && editandoId === f.id && (
                     <div className="bg-muted/40 rounded-lg p-3 space-y-2 border border-border/40">
                       <div className="flex items-center gap-2">
                         <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Preço ref. (R$)</label>
@@ -962,43 +980,53 @@ export default function FornecedoresPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {confirmandoExclusaoId === f.id ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-red-600 font-medium">Excluir?</span>
-                              <button onClick={() => excluirFornecedor(f.id)} disabled={excluindo}
-                                className="text-xs text-white bg-red-600 hover:bg-red-700 px-2 py-0.5 rounded font-semibold disabled:opacity-40">
-                                {excluindo ? '...' : 'Sim'}
-                              </button>
-                              <button onClick={() => setConfirmandoExclusaoId(null)}
-                                className="text-xs text-muted-foreground hover:text-foreground font-medium">Não</button>
-                            </div>
+                          {isGestor ? (
+                            confirmandoExclusaoId === f.id ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-red-600 font-medium">Excluir?</span>
+                                <button onClick={() => excluirFornecedor(f.id)} disabled={excluindo}
+                                  className="text-xs text-white bg-red-600 hover:bg-red-700 px-2 py-0.5 rounded font-semibold disabled:opacity-40">
+                                  {excluindo ? '...' : 'Sim'}
+                                </button>
+                                <button onClick={() => setConfirmandoExclusaoId(null)}
+                                  className="text-xs text-muted-foreground hover:text-foreground font-medium">Não</button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-3">
+                                {enriquecendoId === f.id ? (
+                                  <span className="text-xs text-blue-600 flex items-center gap-1">
+                                    <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
+                                    Analisando...
+                                  </span>
+                                ) : (
+                                  <button onClick={() => rodarEnriquecimento(f.id, 'tabela')}
+                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                                    {f.statusEnriquecimento === 'concluido' ? 'Reenriquecer' : 'Enriquecer'}
+                                  </button>
+                                )}
+                                {f.statusEnriquecimento === 'concluido' && (
+                                  <button
+                                    onClick={() => { setEvolucaoAbertaId(evolucaoAbertaId === f.id ? null : f.id); setAnosEvolucao(ANOS_REFORMA) }}
+                                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                                    {evolucaoAbertaId === f.id ? 'Fechar' : 'Evolução'}
+                                  </button>
+                                )}
+                                <button onClick={() => editandoId === f.id ? setEditandoId(null) : abrirEdicao(f)}
+                                  className="text-xs text-muted-foreground/70 hover:text-foreground font-medium">
+                                  {editandoId === f.id ? 'Fechar' : 'Editar'}
+                                </button>
+                                <button onClick={() => setConfirmandoExclusaoId(f.id)}
+                                  className="text-xs text-red-400 hover:text-red-600 font-medium">Excluir</button>
+                              </div>
+                            )
                           ) : (
-                            <div className="flex items-center gap-3">
-                              {enriquecendoId === f.id ? (
-                                <span className="text-xs text-blue-600 flex items-center gap-1">
-                                  <span className="animate-spin inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full" />
-                                  Analisando...
-                                </span>
-                              ) : (
-                                <button onClick={() => rodarEnriquecimento(f.id, 'tabela')}
-                                  className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                                  {f.statusEnriquecimento === 'concluido' ? 'Reenriquecer' : 'Enriquecer'}
-                                </button>
-                              )}
-                              {f.statusEnriquecimento === 'concluido' && (
-                                <button
-                                  onClick={() => { setEvolucaoAbertaId(evolucaoAbertaId === f.id ? null : f.id); setAnosEvolucao(ANOS_REFORMA) }}
-                                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
-                                  {evolucaoAbertaId === f.id ? 'Fechar' : 'Evolução'}
-                                </button>
-                              )}
-                              <button onClick={() => editandoId === f.id ? setEditandoId(null) : abrirEdicao(f)}
-                                className="text-xs text-muted-foreground/70 hover:text-foreground font-medium">
-                                {editandoId === f.id ? 'Fechar' : 'Editar'}
+                            f.statusEnriquecimento === 'concluido' && (
+                              <button
+                                onClick={() => { setEvolucaoAbertaId(evolucaoAbertaId === f.id ? null : f.id); setAnosEvolucao(ANOS_REFORMA) }}
+                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                                {evolucaoAbertaId === f.id ? 'Fechar' : 'Evolução'}
                               </button>
-                              <button onClick={() => setConfirmandoExclusaoId(f.id)}
-                                className="text-xs text-red-400 hover:text-red-600 font-medium">Excluir</button>
-                            </div>
+                            )
                           )}
                         </td>
                       </tr>
@@ -1009,7 +1037,7 @@ export default function FornecedoresPage() {
                           </td>
                         </tr>
                       )}
-                      {editandoId === f.id && (
+                      {isGestor && editandoId === f.id && (
                         <tr className="bg-muted/40 border-b border-border/40">
                           <td colSpan={7} className="px-4 py-3">
                             <div className="flex items-center gap-4 flex-wrap">

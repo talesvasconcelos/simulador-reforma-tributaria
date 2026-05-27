@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/db'
 import { empresas, faturamentoMensal } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { proibidoParaAdmin } from '@/lib/auth/roles'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -121,10 +122,12 @@ function detectarColuna(colunas: string[], candidatos: string[]): string | undef
 export async function POST(req: NextRequest) {
   let userId: string | null = null
   let orgId: string | null = null
+  let orgRole: string | null = null
   try {
     const authResult = await auth()
     userId = authResult.userId
     orgId = authResult.orgId ?? null
+    orgRole = authResult.orgRole ?? null
   } catch {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
@@ -132,6 +135,9 @@ export async function POST(req: NextRequest) {
   if (!userId || !orgId) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+
+  const bloqueado = proibidoParaAdmin(orgRole)
+  if (bloqueado) return bloqueado
 
   const empresa = await db.query.empresas.findFirst({
     where: eq(empresas.organizationId, orgId),

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatarMoeda } from '@/lib/utils'
+import { useIsGestor } from '@/hooks/use-role'
 
 const REGIMES = [
   { value: 'simples_nacional', label: 'Simples Nacional' },
@@ -51,6 +52,7 @@ interface Empresa {
 }
 
 export default function ConfiguracoesPage() {
+  const isGestor = useIsGestor()
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState(false)
@@ -260,13 +262,18 @@ export default function ConfiguracoesPage() {
             </div>
           )}
 
-          <button
-            onClick={salvar}
-            disabled={salvando}
-            className="px-6 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
-          >
-            {salvando ? 'Salvando...' : 'Salvar alterações'}
-          </button>
+          {isGestor && (
+            <button
+              onClick={salvar}
+              disabled={salvando}
+              className="px-6 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+            >
+              {salvando ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          )}
+          {!isGestor && (
+            <p className="text-xs text-muted-foreground italic">Somente Gestores podem editar as configurações da empresa.</p>
+          )}
         </div>
       </div>
 
@@ -278,8 +285,8 @@ export default function ConfiguracoesPage() {
         </div>
         <div className="p-5 space-y-4">
 
-          {/* Limpar fornecedores */}
-          <div className="border border-border rounded-xl p-4">
+          {/* Limpar fornecedores — restrito a Gestores */}
+          {isGestor && <div className="border border-border rounded-xl p-4">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div className="flex-1">
                 <p className="text-sm font-semibold text-foreground">Limpar todos os fornecedores</p>
@@ -320,7 +327,7 @@ export default function ConfiguracoesPage() {
                 {fornecedoresExcluidos} fornecedor(es) excluído(s). Agora você pode importar uma nova planilha em <strong>Fornecedores → Importar planilha</strong>.
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Como atualizar */}
           <div className="bg-muted/40 rounded-xl p-4 text-xs text-muted-foreground/80 space-y-1">

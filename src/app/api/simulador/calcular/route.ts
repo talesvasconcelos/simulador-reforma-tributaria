@@ -8,8 +8,21 @@ export const dynamic = 'force-dynamic'
 
 const schemaCalculo = z.object({
   ano: z.number().int().min(2026).max(2033),
-  regime: z.string(),
-  setor: z.string(),
+  regime: z.enum([
+    'simples_nacional', 'mei', 'lucro_presumido', 'lucro_real',
+    'nanoempreendedor', 'isento', 'nao_identificado',
+  ]),
+  setor: z.enum([
+    'industria', 'comercio_atacado', 'comercio_varejo', 'servicos',
+    'profissionais_liberais', 'servicos_saude', 'servicos_educacao',
+    'servicos_financeiros', 'agronegocio', 'construcao_civil',
+    'construcao_edificios', 'construcao_infraestrutura',
+    'construcao_servicos_especializados', 'transporte',
+    'transporte_coletivo_passageiros', 'transporte_cargas', 'imoveis',
+    'combustiveis_energia', 'tecnologia', 'misto', 'hotelaria',
+    'parques_diversao', 'fii_fiagro', 'telecomunicacoes',
+    'entidades_desportivas', 'entidades_religiosas',
+  ]),
   faturamentoAnual: z.number().positive(),
   aliquotaIcms: z.number().min(0).max(100),
   aliquotaIss: z.number().min(0).max(100),

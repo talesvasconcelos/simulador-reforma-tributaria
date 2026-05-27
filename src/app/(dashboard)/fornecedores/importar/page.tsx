@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, FileCheck, AlertCircle, CheckCircle, Search } from 'lucide-react'
+import { Upload, FileCheck, AlertCircle, CheckCircle, Search, Lock } from 'lucide-react'
+import { useIsGestor } from '@/hooks/use-role'
 
 interface PreviewColuna {
   coluna: string
@@ -29,6 +30,7 @@ interface ResultadoImportacao {
 }
 
 export default function ImportarFornecedoresPage() {
+  const isGestor = useIsGestor()
   const router = useRouter()
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [arrastando, setArrastando] = useState(false)
@@ -130,6 +132,19 @@ export default function ImportarFornecedoresPage() {
   const amostraPreview = preview?.find((p) => p.coluna === colunaValorSelecionada)?.valores ?? []
 
   const fmtMoeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  if (!isGestor) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 text-center">
+        <Lock className="h-10 w-10 text-muted-foreground" />
+        <h2 className="text-lg font-semibold">Acesso restrito</h2>
+        <p className="text-muted-foreground max-w-sm">
+          A importação de planilhas é uma funcionalidade exclusiva de <strong>Gestores</strong>.
+          Entre em contato com o administrador da sua organização.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 max-w-2xl">
