@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { empresas } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { proibidoParaAdmin } from '@/lib/auth/roles'
+import { registrarAudit, getIp } from '@/lib/audit/registrar'
+import { verificarIpPermitido } from '@/lib/auth/ip-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -144,6 +146,9 @@ export async function PATCH(req: NextRequest) {
   const bloqueado = proibidoParaAdmin(orgRole)
   if (bloqueado) return bloqueado
 
+  const bloqueadoIp = await verificarIpPermitido(getIp(req), orgId)
+  if (bloqueadoIp) return bloqueadoIp
+
   const body = await req.json()
   const parse = schemaNovaEmpresa.partial().safeParse(body)
 
@@ -174,6 +179,15 @@ export async function PATCH(req: NextRequest) {
     })
     .where(eq(empresas.organizationId, orgId))
     .returning()
+
+  await registrarAudit({
+    organizationId: orgId!,
+    userId: userId!,
+    acao: 'editar_empresa',
+    recurso: 'empresa',
+    detalhes: { campos: Object.keys(parse.data) },
+    ip: getIp(req),
+  })
 
   return NextResponse.json(atualizada)
 }

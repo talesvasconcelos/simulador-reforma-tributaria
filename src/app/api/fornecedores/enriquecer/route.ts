@@ -6,6 +6,8 @@ import { eq, and } from 'drizzle-orm'
 import { enriquecerCnpjPorRegras } from '@/lib/ai/enriquecimento-regras'
 import { checkRateLimit } from '@/lib/api/rate-limit'
 import { proibidoParaAdmin } from '@/lib/auth/roles'
+import { registrarAudit, getIp } from '@/lib/audit/registrar'
+import { verificarIpPermitido } from '@/lib/auth/ip-check'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -28,6 +30,9 @@ export async function POST(req: NextRequest) {
 
   const bloqueado = proibidoParaAdmin(orgRole)
   if (bloqueado) return bloqueado
+
+  const bloqueadoIp = await verificarIpPermitido(getIp(req), orgId)
+  if (bloqueadoIp) return bloqueadoIp
 
   // Rate limit: 10 enriquecimentos manuais por minuto por usuário
   const { allowed } = await checkRateLimit(`enriquecer:${userId}`, 10, 60)
@@ -69,6 +74,14 @@ export async function POST(req: NextRequest) {
       where: eq(fornecedores.id, fornecedorId),
     })
 
+    await registrarAudit({
+      organizationId: orgId!,
+      userId: userId!,
+      acao: 'enriquecer_fornecedor',
+      recurso: 'fornecedores',
+      detalhes: { fornecedorId, cnpj: fornecedor.cnpj },
+      ip: getIp(req),
+    })
     return NextResponse.json({ sucesso: true, fornecedor: atualizado })
   } catch (err: unknown) {
     console.error('[fornecedores/enriquecer] Erro ao enriquecer fornecedor:', err)

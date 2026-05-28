@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { proibidoParaAdmin } from '@/lib/auth/roles'
+import { registrarAudit, getIp } from '@/lib/audit/registrar'
+import { verificarIpPermitido } from '@/lib/auth/ip-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +35,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const bloqueado = proibidoParaAdmin(orgRole)
   if (bloqueado) return bloqueado
+
+  const bloqueadoIp = await verificarIpPermitido(getIp(req), orgId)
+  if (bloqueadoIp) return bloqueadoIp
 
   const { id } = await params
 
@@ -73,10 +78,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .where(and(eq(fornecedores.id, id), eq(fornecedores.empresaId, empresa.id)))
     .returning()
 
+  await registrarAudit({
+    organizationId: orgId!,
+    userId: userId!,
+    acao: 'editar_fornecedor',
+    recurso: 'fornecedores',
+    detalhes: { fornecedorId: id, cnpj: fornecedor.cnpj, campos: Object.keys(dados) },
+    ip: getIp(req),
+  })
+
   return NextResponse.json(atualizado)
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let userId: string | null = null
   let orgId: string | null = null
   let orgRole: string | null = null
@@ -115,6 +129,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     .update(fornecedores)
     .set({ ativo: false, atualizadoEm: new Date() })
     .where(eq(fornecedores.id, id))
+
+  await registrarAudit({
+    organizationId: orgId!,
+    userId: userId!,
+    acao: 'excluir_fornecedor',
+    recurso: 'fornecedores',
+    detalhes: { fornecedorId: id, cnpj: fornecedor.cnpj, razaoSocial: fornecedor.razaoSocial },
+    ip: getIp(req),
+  })
 
   return NextResponse.json({ ok: true })
 }

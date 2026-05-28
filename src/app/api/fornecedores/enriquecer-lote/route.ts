@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { proibidoParaAdmin } from '@/lib/auth/roles'
+import { registrarAudit, getIp } from '@/lib/audit/registrar'
+import { verificarIpPermitido } from '@/lib/auth/ip-check'
 
 const schemaLote = z.object({
   ids: z.array(z.string().uuid()).max(500).optional(),
@@ -30,6 +32,9 @@ export async function POST(req: NextRequest) {
 
   const bloqueado = proibidoParaAdmin(orgRole)
   if (bloqueado) return bloqueado
+
+  const bloqueadoIp = await verificarIpPermitido(getIp(req), orgId)
+  if (bloqueadoIp) return bloqueadoIp
 
   const empresa = await db.query.empresas.findFirst({
     where: eq(empresas.organizationId, orgId),
@@ -74,6 +79,15 @@ export async function POST(req: NextRequest) {
         inArray(fornecedores.id, lista.map((f) => f.id)),
       )
     )
+
+  await registrarAudit({
+    organizationId: orgId!,
+    userId: userId!,
+    acao: 'enriquecer_todos',
+    recurso: 'fornecedores',
+    detalhes: { enfileirados: lista.length },
+    ip: getIp(req),
+  })
 
   return NextResponse.json({ enfileirados: lista.length })
 }

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Calculator, Users, TrendingUp,
   MessageSquare, Newspaper, BookOpen, ChevronRight, Scale, UserCheck,
-  BarChart3, GitCompare, Settings,
+  BarChart3, GitCompare, Settings, ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +27,7 @@ const GRUPOS = [
       { href: '/faturamento/importar', label: 'Faturamento', icon: BarChart3 },
       { href: '/aliquotas', label: 'Alíquotas', icon: BookOpen },
       { href: '/configuracoes', label: 'Configurações', icon: Settings },
+      { href: '/configuracoes/seguranca', label: 'Segurança', icon: ShieldCheck },
     ],
   },
   {

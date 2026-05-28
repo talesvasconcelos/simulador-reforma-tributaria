@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { empresas, faturamentoMensal } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { proibidoParaAdmin } from '@/lib/auth/roles'
+import { registrarAudit, getIp } from '@/lib/audit/registrar'
+import { verificarIpPermitido } from '@/lib/auth/ip-check'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -138,6 +140,9 @@ export async function POST(req: NextRequest) {
 
   const bloqueado = proibidoParaAdmin(orgRole)
   if (bloqueado) return bloqueado
+
+  const bloqueadoIp = await verificarIpPermitido(getIp(req), orgId)
+  if (bloqueadoIp) return bloqueadoIp
 
   const empresa = await db.query.empresas.findFirst({
     where: eq(empresas.organizationId, orgId),
@@ -279,6 +284,15 @@ export async function POST(req: NextRequest) {
       erros++
     }
   }
+
+  await registrarAudit({
+    organizationId: orgId!,
+    userId: userId!,
+    acao: 'importar_faturamento',
+    recurso: 'faturamento',
+    detalhes: { total, inseridos, atualizados, erros, anoDetectado },
+    ip: getIp(req),
+  })
 
   return NextResponse.json({
     total,

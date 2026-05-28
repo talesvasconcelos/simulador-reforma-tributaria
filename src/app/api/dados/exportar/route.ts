@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { empresas, simulacoes, chatHistorico } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { proibidoParaAdmin } from '@/lib/auth/roles'
+import { registrarAudit, getIp } from '@/lib/audit/registrar'
+import { verificarIpPermitido } from '@/lib/auth/ip-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +32,9 @@ export async function GET(req: NextRequest) {
 
   const bloqueado = proibidoParaAdmin(orgRole)
   if (bloqueado) return bloqueado
+
+  const bloqueadoIp = await verificarIpPermitido(getIp(req), orgId)
+  if (bloqueadoIp) return bloqueadoIp
 
   const empresa = await db.query.empresas.findFirst({
     where: eq(empresas.organizationId, orgId),
@@ -70,6 +75,15 @@ export async function GET(req: NextRequest) {
     historicoChat,
     nota: 'Exportação realizada conforme Art. 18, III da Lei 13.709/2018 (LGPD). Os dados de fornecedores são informações empresariais (CNPJ público) e não constam neste relatório de dados pessoais.',
   }
+
+  await registrarAudit({
+    organizationId: orgId!,
+    userId: userId!,
+    acao: 'exportar_csv',
+    recurso: 'dados',
+    detalhes: { tipo: 'lgpd_json' },
+    ip: getIp(req),
+  })
 
   return new NextResponse(JSON.stringify(exportacao, null, 2), {
     status: 200,

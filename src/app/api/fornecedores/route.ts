@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { empresas, fornecedores } from '@/lib/db/schema'
 import { eq, and, count, or, ilike } from 'drizzle-orm'
 import { proibidoParaAdmin } from '@/lib/auth/roles'
+import { registrarAudit, getIp } from '@/lib/audit/registrar'
+import { verificarIpPermitido } from '@/lib/auth/ip-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,6 +104,9 @@ export async function POST(req: NextRequest) {
   const bloqueado = proibidoParaAdmin(orgRole)
   if (bloqueado) return bloqueado
 
+  const bloqueadoIp = await verificarIpPermitido(getIp(req), orgId)
+  if (bloqueadoIp) return bloqueadoIp
+
   const empresa = await db.query.empresas.findFirst({
     where: eq(empresas.organizationId, orgId),
   })
@@ -131,6 +136,14 @@ export async function POST(req: NextRequest) {
     .returning()
 
   if (inserido) {
+    await registrarAudit({
+      organizationId: orgId!,
+      userId: userId!,
+      acao: 'adicionar_fornecedor',
+      recurso: 'fornecedores',
+      detalhes: { cnpj: parse.data.cnpj },
+      ip: getIp(req),
+    })
     return NextResponse.json(inserido, { status: 201 })
   }
 
@@ -161,6 +174,9 @@ export async function DELETE(req: NextRequest) {
   const bloqueado = proibidoParaAdmin(orgRole)
   if (bloqueado) return bloqueado
 
+  const bloqueadoIp = await verificarIpPermitido(getIp(req), orgId)
+  if (bloqueadoIp) return bloqueadoIp
+
   const empresa = await db.query.empresas.findFirst({ where: eq(empresas.organizationId, orgId) })
   if (!empresa) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 })
 
@@ -174,6 +190,15 @@ export async function DELETE(req: NextRequest) {
     .delete(fornecedores)
     .where(eq(fornecedores.empresaId, empresa.id))
     .returning({ id: fornecedores.id })
+
+  await registrarAudit({
+    organizationId: orgId!,
+    userId: userId!,
+    acao: 'deletar_todos_fornecedores',
+    recurso: 'fornecedores',
+    detalhes: { excluidos: resultado.length },
+    ip: getIp(req),
+  })
 
   return NextResponse.json({ excluidos: resultado.length })
 }

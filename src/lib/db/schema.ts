@@ -11,7 +11,13 @@ import {
   index,
   uniqueIndex,
   pgEnum,
+  customType,
 } from 'drizzle-orm/pg-core'
+
+// pgvector custom type — coluna criada manualmente via SQL, declarada aqui para Drizzle não dropá-la
+const vector = customType<{ data: string; driverData: string }>({
+  dataType() { return 'vector(1024)' },
+})
 
 // ============================================================
 // ENUMS
@@ -275,6 +281,7 @@ export const embeddingsRag = pgTable('embeddings_rag', {
   chunkIndex: integer('chunk_index').notNull(),
   conteudo: text('conteudo').notNull(),
   embedding: text('embedding').notNull(), // Vetor como string JSON — usar com pgvector cast
+  embeddingVector: vector('embedding_vector'), // coluna pgvector criada manualmente
 
   // Metadados do chunk para filtros
   artigos: jsonb('artigos').$type<string[]>(),
@@ -358,6 +365,53 @@ export const filaEnriquecimento = pgTable('fila_enriquecimento', {
 }, (table) => ({
   statusIdx: index('fila_status_idx').on(table.status),
   cnpjIdx: index('fila_cnpj_idx').on(table.cnpj),
+}))
+
+// ============================================================
+// SEGURANÇA — Auditoria, IP Allowlist e Aprovações Duplas
+// ============================================================
+
+export const auditoria = pgTable('auditoria', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: varchar('organization_id', { length: 255 }).notNull(),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  acao: varchar('acao', { length: 100 }).notNull(),
+  recurso: varchar('recurso', { length: 100 }).notNull(),
+  detalhes: jsonb('detalhes'),
+  ip: varchar('ip', { length: 45 }),
+  criadoEm: timestamp('criado_em').defaultNow().notNull(),
+}, (table) => ({
+  orgIdx: index('auditoria_org_idx').on(table.organizationId),
+  criadoIdx: index('auditoria_criado_idx').on(table.criadoEm),
+}))
+
+export const ipPermitidos = pgTable('ip_permitidos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: varchar('organization_id', { length: 255 }).notNull(),
+  ip: varchar('ip', { length: 50 }).notNull(),
+  descricao: varchar('descricao', { length: 200 }),
+  criadoEm: timestamp('criado_em').defaultNow().notNull(),
+}, (table) => ({
+  orgIdx: index('ip_permitidos_org_idx').on(table.organizationId),
+}))
+
+export const aprovacoesPendentes = pgTable('aprovacoes_pendentes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: varchar('organization_id', { length: 255 }).notNull(),
+  solicitanteId: varchar('solicitante_id', { length: 255 }).notNull(),
+  acao: varchar('acao', { length: 100 }).notNull(),
+  descricaoAcao: varchar('descricao_acao', { length: 500 }).notNull(),
+  token: varchar('token', { length: 100 }).notNull(),
+  status: varchar('status', { length: 30 }).notNull().default('pendente'),
+  aprovadorId: varchar('aprovador_id', { length: 255 }),
+  dadosAcao: jsonb('dados_acao'),
+  expiradoEm: timestamp('expirado_em').notNull(),
+  resolvidoEm: timestamp('resolvido_em'),
+  criadoEm: timestamp('criado_em').defaultNow().notNull(),
+}, (table) => ({
+  orgIdx: index('aprovacoes_org_idx').on(table.organizationId),
+  tokenIdx: uniqueIndex('aprovacoes_token_idx').on(table.token),
+  statusIdx: index('aprovacoes_status_idx').on(table.status),
 }))
 
 // ============================================================
